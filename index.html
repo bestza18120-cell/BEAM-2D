@@ -323,6 +323,20 @@
   .tag-ok{color:var(--ok); font-weight:700;}
   .tag-ng{color:var(--ng); font-weight:700;}
   .field select.wide{min-width:200px;}
+  #caseList .case-chip{display:inline-flex; align-items:center; gap:4px; padding:3px 4px 3px 8px; border:1px solid var(--panel-border); border-radius:8px; background:var(--surface-2);}
+  #caseList .case-chip input{width:78px; font-family:'JetBrains Mono',monospace; font-size:0.8rem; padding:4px 6px; border:1px solid var(--border); border-radius:4px; background:var(--input-bg); color:var(--text);}
+  #caseList .x, #comboTable .x{padding:2px 7px; font-size:0.72rem;}
+  #caseList .lbl{font-family:'JetBrains Mono',monospace; font-size:0.72rem; color:var(--text-soft); text-transform:uppercase; letter-spacing:0.05em; font-weight:600;}
+  #caseList select{font-family:'JetBrains Mono',monospace; font-size:0.8rem; padding:4px 6px; border:1px solid var(--border); border-radius:4px; background:var(--input-bg); color:var(--text);}
+  .combo-wrap{overflow-x:auto; padding:6px 16px 0;}
+  #comboTable{width:auto; min-width:100%;}
+  #comboTable th{text-align:center; text-transform:none;}
+  #comboTable th:first-child{text-align:left;}
+  #comboTable input{font-family:'JetBrains Mono',monospace; font-size:0.8rem; padding:4px 6px; border:1px solid var(--border); border-radius:4px; background:var(--input-bg); color:var(--text); width:64px; text-align:right;}
+  #comboTable input.cname{width:150px; text-align:left;}
+  #comboTable input.zero{opacity:0.45;}
+  .combo-formula{font-family:'JetBrains Mono',monospace; font-size:0.8rem; color:var(--text-soft); align-self:flex-end; padding-bottom:7px;}
+  #comboWarn{color:var(--ng);}
   .max-badge.moment{background:var(--moment-soft); color:var(--moment-ink);}
 
   footer{
@@ -437,35 +451,28 @@
     <div id="loadList"></div>
   </div>
 
-  <!-- LOAD COMBINATION -->
+  <!-- LOAD CASES & COMBINATIONS -->
   <div class="panel">
-    <div class="panel-head"><h2>Load Combination (Factor)</h2></div>
-    <div class="controls">
-      <label style="display:flex; align-items:center; gap:6px; font-family:'JetBrains Mono',monospace; font-size:0.82rem; cursor:pointer;">
-        <input type="checkbox" id="comboEnabled" style="width:16px;height:16px;cursor:pointer;">
-        ใช้ Factored Load (Ultimate)
-      </label>
-    </div>
+    <div class="panel-head"><h2>Load Case &amp; Load Combination</h2></div>
+    <div class="controls" id="caseList"></div>
+    <div class="combo-wrap"><table id="comboTable"></table></div>
     <div class="controls" style="border-bottom:none;">
-      <div class="field">
-        <label>Factor DL</label>
-        <input type="text" inputmode="decimal" id="factorDL" step="0.05" value="1.4">
-      </div>
-      <div class="field">
-        <label>Factor SDL</label>
-        <input type="text" inputmode="decimal" id="factorSDL" step="0.05" value="1.4">
-      </div>
-      <div class="field">
-        <label>Factor LL</label>
-        <input type="text" inputmode="decimal" id="factorLL" step="0.05" value="1.7">
-      </div>
+      <button class="primary" id="addCombo">+ Combination</button>
     </div>
-    <div class="hint">กำหนดประเภทของแต่ละแรง (DL/SDL/LL) ได้ที่ dropdown ในรายการแรงด้านบน · เมื่อเปิดใช้งาน ทุกผลลัพธ์ (Reaction, SFD, BMD) จะเป็นค่า Factored (Ultimate)</div>
+    <div class="hint">1) ตั้งชื่อ load case เอง (เช่น DL, SDL1, SDL2, LL) แล้วเลือก case ให้แต่ละแรงที่ dropdown ในรายการแรง · 2) ใส่ factor ของแต่ละ case ในแต่ละ combination (ช่องว่าง/0 = ไม่รวม case นั้น) · 3) เลือก combination ที่จะแสดงผลได้ที่หน้าต่าง Reactions และ Deflection</div>
   </div>
 
   <!-- REACTIONS -->
   <div class="panel">
     <div class="panel-head"><h2>Reactions</h2></div>
+    <div class="controls">
+      <div class="field">
+        <label>แสดง Reactions / Shear / Moment จาก combination</label>
+        <select id="showComboSel" class="wide"></select>
+      </div>
+      <div id="showComboFormula" class="combo-formula"></div>
+    </div>
+    <div class="hint" id="comboWarn" hidden></div>
     <div class="panel-body" style="padding-top:8px; padding-bottom:8px;">
       <table id="reactionTable"><tbody></tbody></table>
     </div>
@@ -506,6 +513,10 @@
     <div class="panel-head"><h2>Deflection — การโก่งตัว (Service Load) <span id="maxDefl" class="max-badge defl"></span></h2></div>
     <div class="controls">
       <div class="field">
+        <label>Combination ที่ใช้ดูการโก่งตัว</label>
+        <select id="deflComboSel" class="wide"></select>
+      </div>
+      <div class="field">
         <label>เกณฑ์ยอมให้ <span class="nt">δ</span> ≤ L / n</label>
         <select id="deflLimitSel">
           <option value="180">L/180</option>
@@ -525,7 +536,7 @@
         <svg id="deflSvg" viewBox="0 0 900 200" preserveAspectRatio="xMidYMid meet" style="width:100%; height:auto;"></svg>
       </div>
       <table id="deflTable"><tbody></tbody></table>
-      <div class="hint" style="padding:8px 0 0; border:none; background:none;">คิดจาก Service Load (factor = 1 ทุกประเภท แม้จะเปิด Factored Load อยู่) เป็นการโก่งตัวแบบยืดหยุ่นทันที (immediate) ยังไม่รวมการโก่งตัวระยะยาวจาก creep/shrinkage ของคอนกรีต · ช่วงยื่น (cantilever) ใช้ความยาวช่วงยื่นเป็น L · ค่าลบ = แอ่นลง</div>
+      <div class="hint" style="padding:8px 0 0; border:none; background:none;">คิดจาก combination ที่เลือกด้านบน (ปกติใช้ combination ใช้งาน เช่น 1.0DL + 1.0LL) เป็นการโก่งตัวแบบยืดหยุ่นทันที (immediate) ยังไม่รวมการโก่งตัวระยะยาวจาก creep/shrinkage ของคอนกรีต · ช่วงยื่น (cantilever) ใช้ความยาวช่วงยื่นเป็น L · ค่าลบ = แอ่นลง</div>
     </div>
   </div>
 
@@ -558,7 +569,8 @@ function defaultSection(){
     material: 'concrete',
     concrete: { b:250, h:500, fc:240, factor:1.0, gamma:2400 },
     steel: { shape:'hbeam', dims, fy:2400, E:STEEL_E_DEFAULT, axis:'x', gamma:7850 },
-    selfWeight: true
+    selfWeight: true,
+    swCase: 'DL'
   };
 }
 function ensureSection(s){
@@ -703,7 +715,11 @@ function defaultState(){
       factors: { DL:1.4, SDL:1.4, LL:1.7 }
     },
     section: defaultSection(),
-    deflLimit: 240
+    deflLimit: 240,
+    loadCases: defaultCases(),
+    combos: defaultCombos(),
+    showCombo: 'k1',
+    deflCombo: 'k1'
   };
 }
 let state = defaultState();
@@ -773,10 +789,50 @@ function evalMathInput(str, fallback){
 }
 
 /* ============== LOAD COMBINATION (FACTORED LOADS) ============== */
-let serviceMode = false; // true = ใช้ factor 1 (สำหรับคำนวณการโก่งตัว)
+/* ---- load cases (user-named) & combinations (named, factor per case) ---- */
+function defaultCases(){ return [{id:'DL', name:'DL'}, {id:'SDL', name:'SDL'}, {id:'LL', name:'LL'}]; }
+function defaultCombos(f){
+  f = f || {DL:1.4, SDL:1.4, LL:1.7};
+  return [
+    {id:'k1', name:'SERVICE', factors:{DL:1, SDL:1, LL:1}},
+    {id:'k2', name:'ULTIMATE', factors:{DL:f.DL, SDL:f.SDL, LL:f.LL}}
+  ];
+}
+function uid(prefix){ return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function caseName(id){ const c = state.loadCases.find(c=>c.id===id); return c ? c.name : '?'; }
+function comboById(id){ return state.combos.find(k=>k.id===id) || state.combos[0]; }
+function comboFormula(k){
+  const parts = state.loadCases
+    .filter(c=> (k.factors[c.id]||0) !== 0)
+    .map(c=>{ const f = round4(k.factors[c.id]); return `${Number.isInteger(f) ? f.toFixed(1) : f} ${c.name}`; });
+  return parts.length ? parts.join(' + ') : '(ไม่มี factor)';
+}
+// upgrade files from the fixed DL/SDL/LL + "enabled" system (format 1)
+function ensureLoadSystem(s){
+  if (!Array.isArray(s.loadCases) || !s.loadCases.length) s.loadCases = defaultCases();
+  if (!Array.isArray(s.combos) || !s.combos.length){
+    const old = s.combo && s.combo.factors;
+    s.combos = defaultCombos(old ? {DL:old.DL ?? 1.4, SDL:old.SDL ?? 1.4, LL:old.LL ?? 1.7} : undefined);
+    if (!s.showCombo) s.showCombo = (s.combo && s.combo.enabled) ? 'k2' : 'k1';
+  }
+  delete s.combo;
+  const ids = new Set(s.loadCases.map(c=>c.id));
+  s.loads.forEach(l=>{ if (!ids.has(l.cat)) l.cat = s.loadCases[0].id; });
+  s.combos.forEach(k=>{
+    k.factors = k.factors || {};
+    for (const id in k.factors) if (!ids.has(id)) delete k.factors[id];
+  });
+  if (!s.combos.some(k=>k.id===s.showCombo)) s.showCombo = s.combos[0].id;
+  if (!s.combos.some(k=>k.id===s.deflCombo)) s.deflCombo = s.combos[0].id;
+  if (s.section && !ids.has(s.section.swCase)) s.section.swCase = ids.has('DL') ? 'DL' : s.loadCases[0].id;
+  return s;
+}
+
+let activeCombo = null; // combination whose factors the solver applies right now
 function loadFactor(cat){
-  if (serviceMode || !state.combo.enabled) return 1;
-  return state.combo.factors[cat || 'DL'] ?? 1;
+  if (!activeCombo) return 1;
+  const f = activeCombo.factors[cat];
+  return (typeof f === 'number' && isFinite(f)) ? f : 0;
 }
 function effMag(ld){
   if (ld.active === false) return 0;
@@ -788,7 +844,7 @@ function selfWeightLoad(sp){
   if (!state.section || !state.section.selfWeight || !sp || !sp.valid) return null;
   const w = sp.weight / 1000;                       // kg/m → t/m
   if (!(w > 0)) return null;
-  return { id:'sw', kind:'udl', start:0, end:state.L, mag:w, cat:'DL', active:true, auto:true };
+  return { id:'sw', kind:'udl', start:0, end:state.L, mag:w, cat:state.section.swCase, active:true, auto:true };
 }
 function buildCalcLoads(sp){
   const sw = selfWeightLoad(sp);
@@ -822,19 +878,19 @@ function distLeftOf(ld, x){
   };
 }
 function triLabelText(ld){
-  const cat = ld.cat || 'DL';
+  const cat = caseName(ld.cat);
   const off = ld.active === false ? ' [ปิด]' : '';
   const f = (v)=> Math.abs(v).toFixed(1);
-  if (!state.combo.enabled) return `${f(ld.w1)}→${f(ld.w2)}t/m (${cat})${off}`;
-  const k = loadFactor(cat);
+  const k = loadFactor(ld.cat);
+  if (k === 1) return `${f(ld.w1)}→${f(ld.w2)}t/m (${cat})${off}`;
   return `${f(ld.w1)}→${f(ld.w2)}×${k} (${cat}) = ${f(ld.w1*k)}→${f(ld.w2*k)}t/m${off}`;
 }
 function loadLabelText(ld, unit){
   const base = `${Math.abs(ld.mag).toFixed(1)}${unit}`;
-  const cat = ld.cat || 'DL';
+  const cat = caseName(ld.cat);
   const offSuffix = ld.active === false ? ' [ปิด]' : '';
-  if (!state.combo.enabled) return `${base} (${cat})${offSuffix}`;
-  const f = loadFactor(cat);
+  const f = loadFactor(ld.cat);
+  if (f === 1) return `${base} (${cat})${offSuffix}`;
   const factored = Math.abs(effMag(ld)).toFixed(1);
   return `${base}×${f} (${cat}) = ${factored}${unit}${offSuffix}`;
 }
@@ -1125,8 +1181,8 @@ function drawSelfWeight(beamY){
   for (let x = xA+4; x < xB; x += 10){
     el('line', {x1:x, y1:top+9, x2:x+6, y2:top, stroke:'var(--text-soft)', 'stroke-width':1, opacity:'0.6'}, g);
   }
-  const k = loadFactor('DL');
-  const t = state.combo.enabled ? `น้ำหนักคาน ${sw.mag.toFixed(3)}×${k} = ${(sw.mag*k).toFixed(3)} t/m (DL)` : `น้ำหนักคาน ${sw.mag.toFixed(3)} t/m (DL)`;
+  const k = loadFactor(sw.cat), cn = caseName(sw.cat);
+  const t = k !== 1 ? `น้ำหนักคาน ${sw.mag.toFixed(3)}×${k} = ${(sw.mag*k).toFixed(3)} t/m (${cn})` : `น้ำหนักคาน ${sw.mag.toFixed(3)} t/m (${cn})`;
   el('text', {x:xA, y:beamY+88, 'font-size':'10.5', 'font-family':'JetBrains Mono, monospace', fill:'var(--text-soft)'}, g).textContent = '▨ ' + t;
 }
 
@@ -1313,7 +1369,10 @@ function recompute(){
 
   const sp = sectionProps();
   buildCalcLoads(sp);
+  const showK = comboById(state.showCombo), deflK = comboById(state.deflCombo);
+  activeCombo = showK;
   const reactionResult = solveReactions();
+  renderComboStatus(showK);
   renderReactionTable(reactionResult);
   renderSupportValuesTable(reactionResult);
 
@@ -1323,18 +1382,16 @@ function recompute(){
     renderDiagram(bmdSvg, diag.xs, diag.M, 'var(--moment)', 'M (t·m)');
     const maxV = Math.max(...diag.V.map(Math.abs));
     const maxM = Math.max(...diag.M.map(Math.abs));
-    const vLabel = state.combo.enabled ? 'Vu' : 'V';
-    const mLabel = state.combo.enabled ? 'Mu' : 'M';
-    $('#maxShear').textContent = `max |${vLabel}| = ${maxV.toFixed(2)} t`;
-    $('#maxMoment').textContent = `max |${mLabel}| = ${maxM.toFixed(2)} t·m`;
+    $('#maxShear').textContent = `max |V| = ${maxV.toFixed(2)} t · ${showK.name}`;
+    $('#maxMoment').textContent = `max |M| = ${maxM.toFixed(2)} t·m · ${showK.name}`;
     renderSectionProps(sp, maxM);
-    // deflection always from service loads (factor 1)
-    let svc = reactionResult;
-    if (state.combo.enabled){
-      serviceMode = true;
-      try { svc = solveReactions(); } finally { serviceMode = false; }
+    // deflection uses its own combination (usually a service combination)
+    let dres = reactionResult;
+    if (deflK !== showK){
+      activeCombo = deflK;
+      try { dres = solveReactions(); } finally { activeCombo = showK; }
     }
-    renderDeflection(svc, sp);
+    renderDeflection(dres, sp, null, deflK);
   } else {
     sfdSvg.innerHTML = '';
     bmdSvg.innerHTML = '';
@@ -1361,8 +1418,8 @@ function renderReactionTable(result){
     return;
   }
   const headerRow = document.createElement('tr');
-  const rLabel = state.combo.enabled ? 'Ru' : 'R';
-  const rmLabel = state.combo.enabled ? 'Mu' : 'M';
+  const rLabel = 'R';
+  const rmLabel = 'M';
   headerRow.innerHTML = `<th>Support</th><th>Force ${rLabel} (t, ↑+)</th><th>Moment ${rmLabel} (t·m)</th>`;
   reactionTable.appendChild(headerRow);
   for (const key in result.reactions){
@@ -1386,9 +1443,9 @@ function renderSupportValuesTable(result){
   }
   const L = state.L;
   const eps = Math.max(L*0.0005, 1e-4);
-  const vLabel = state.combo.enabled ? 'Vu' : 'V';
-  const mLabel = state.combo.enabled ? 'Mu' : 'M';
-  const rLabel = state.combo.enabled ? 'Ru' : 'R';
+  const vLabel = 'V';
+  const mLabel = 'M';
+  const rLabel = 'R';
   const headerRow = document.createElement('tr');
   headerRow.innerHTML = `<th>Support</th><th>${vLabel} ซ้าย (t)</th><th>${vLabel} ขวา (t)</th><th>${rLabel} = จาก jump (t)</th><th>${mLabel} (t·m)</th>`;
   supportValuesTable.appendChild(headerRow);
@@ -1474,8 +1531,8 @@ function renderLoadList(){
     } else if (ld.kind === 'moment'){
       fields = `Moment @ <input type="text" inputmode="decimal" value="${ld.pos}" data-id="${ld.id}" data-field="pos" style="width:64px;"> m &nbsp; M=<input type="text" inputmode="decimal" value="${ld.mag}" data-id="${ld.id}" data-field="mag" style="width:64px;"> t·m`;
     }
-    const catOptions = ['DL','SDL','LL'].map(c=>
-      `<option value="${c}" ${((ld.cat||'DL')===c)?'selected':''}>${c}</option>`
+    const catOptions = state.loadCases.map(c=>
+      `<option value="${c.id}" ${ld.cat===c.id?'selected':''}>${escHtml(c.name)}</option>`
     ).join('');
     const catSelect = `<select data-id="${ld.id}" data-field="cat">${catOptions}</select>`;
     const toggleBtn = `<button class="toggle-active${isActive?'':' is-off'}" data-toggle-active="${ld.id}" title="${isActive?'ปิดใช้งานแรงนี้ (ไม่ลบ)':'เปิดใช้งานแรงนี้'}" aria-label="${isActive?'ปิดใช้งานแรงนี้':'เปิดใช้งานแรงนี้'}" aria-pressed="${!isActive}">${isActive?ICON_EYE:ICON_EYE_OFF}</button>`;
@@ -1624,7 +1681,7 @@ function renderSectionProps(sp, maxM){
     row('น้ำหนักคาน (A×γ)', `${fmtSig(sp.weight)} kg/m = ${(sp.weight/1000).toFixed(3)} t/m${state.section.selfWeight ? '' : ' (ไม่รวม)'}`);
     if (isFinite(maxM) && sp.S > 0){
       const fb = maxM*1e8/sp.S; // ksc  (t·m → kg·cm = ×1e5 ; mm³ → cm³ = ÷1e3)
-      const lbl = state.combo.enabled ? 'fb = Mu,max / S' : 'fb = Mmax / S';
+      const lbl = `fb = Mmax / S (${comboById(state.showCombo).name})`;
       row(lbl, `${fmtSig(fb)} ksc`);
       if (sp.fy > 0) row('fb / fy', `${(fb/sp.fy).toFixed(2)}`);
     }
@@ -1702,7 +1759,7 @@ function spanSegments(){
   return segs;
 }
 
-function renderDeflection(res, sp, invalidMsg){
+function renderDeflection(res, sp, invalidMsg, combo){
   lastDefl = null;
   deflTable.innerHTML = '';
   deflSvg.innerHTML = '';
@@ -1714,7 +1771,7 @@ function renderDeflection(res, sp, invalidMsg){
   lastDefl = { res, sp };
   renderDiagram(deflSvg, xs, v, 'var(--defl)', 'δ (mm)');
   const maxAbs = Math.max(...v.map(Math.abs));
-  $('#maxDefl').innerHTML = `max |<span class="nt">δ</span>| = ${maxAbs.toFixed(2)} mm`;
+  $('#maxDefl').innerHTML = `max |<span class="nt">δ</span>| = ${maxAbs.toFixed(2)} mm` + (combo ? ` · ${escHtml(combo.name)}` : '');
 
   const n = state.deflLimit;
   const head = document.createElement('tr');
@@ -1781,13 +1838,13 @@ function drawCursor(){
   if (cursorX === null || !lastCalc){ readoutEl.hidden = true; return; }
   const x = clamp(cursorX, 0, state.L);
   const R = lastCalc.R;
-  const u = state.combo.enabled ? 'u' : '';
+  const u = '';
   const xs = `x=${x.toFixed(2)} m`;
   drawCursorOn(sfdSvg, x, shearAt(x, R), `${xs}  V${u}=${fmt(shearAt(x, R))} t`);
   drawCursorOn(bmdSvg, x, momentAt(x, R), `${xs}  M${u}=${fmt(momentAt(x, R))} t·m`);
   const dv = deflAt(x);
   if (dv !== null) drawCursorOn(deflSvg, x, dv, `${xs}  δ=${dv.toFixed(2)} mm`);
-  readoutEl.innerHTML = `<span>x = <b>${x.toFixed(2)}</b> m</span>`
+  readoutEl.innerHTML = `<span style="opacity:.7">${escHtml(comboById(state.showCombo).name)}</span><span>x = <b>${x.toFixed(2)}</b> m</span>`
     + `<span class="ro-v">V${u} = <b>${fmt(shearAt(x, R))}</b> t</span>`
     + `<span class="ro-m">M${u} = <b>${fmt(momentAt(x, R))}</b> t·m</span>`
     + (dv !== null ? `<span class="ro-d">δ = <b>${dv.toFixed(2)}</b> mm</span>` : '')
@@ -1812,6 +1869,132 @@ cursorSvgs.forEach(svg=>{
   svg.addEventListener('pointerleave', (e)=>{ if (e.pointerType === 'mouse'){ cursorX = null; drawCursor(); } });
 });
 
+/* ============== LOAD CASE & COMBINATION PANEL ============== */
+function escHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function defaultCaseId(){
+  const dl = state.loadCases.find(c=>c.name.toUpperCase()==='DL');
+  return (dl || state.loadCases[0]).id;
+}
+const caseListEl = $('#caseList'), comboTableEl = $('#comboTable');
+const showComboSel = $('#showComboSel'), deflComboSel = $('#deflComboSel');
+
+function renderComboSelectors(){
+  const opts = state.combos.map(k=>`<option value="${k.id}">${escHtml(k.name)}</option>`).join('');
+  showComboSel.innerHTML = opts; showComboSel.value = state.showCombo;
+  deflComboSel.innerHTML = opts; deflComboSel.value = state.deflCombo;
+}
+
+// formula + warning for cases that carry loads but have factor 0 in the shown combination
+function renderComboStatus(k){
+  $('#showComboFormula').textContent = '= ' + comboFormula(k);
+  const used = new Set(calcLoads().filter(l=>l.active !== false).map(l=>l.cat));
+  const skipped = state.loadCases.filter(c=> used.has(c.id) && !((k.factors[c.id]||0) !== 0)).map(c=>c.name);
+  const w = $('#comboWarn');
+  if (skipped.length){
+    w.hidden = false;
+    w.textContent = `⚠ load case ${skipped.join(', ')} มีแรงอยู่ แต่ factor = 0 ใน "${k.name}" — แรงเหล่านี้ไม่ถูกนำมาคิด`;
+  } else w.hidden = true;
+}
+
+// rebuilt only on structural changes (add / delete / rename) so typing factors never loses focus
+function renderLoadSystemPanel(){
+  // --- load case chips
+  let html = `<span class="lbl">Load case</span>`;
+  state.loadCases.forEach(c=>{
+    html += `<span class="case-chip"><input type="text" value="${escHtml(c.name)}" data-case-name="${c.id}" aria-label="ชื่อ load case">`
+         +  `<button class="x danger" data-case-del="${c.id}" title="ลบ load case นี้" aria-label="ลบ ${escHtml(c.name)}">✕</button></span>`;
+  });
+  html += `<button class="primary" id="addCase">+ Load case</button>`;
+  html += `<span class="lbl" style="margin-left:8px;">น้ำหนักคานอยู่ใน case</span>`
+       +  `<select id="swCaseSel">${state.loadCases.map(c=>`<option value="${c.id}" ${state.section.swCase===c.id?'selected':''}>${escHtml(c.name)}</option>`).join('')}</select>`;
+  caseListEl.innerHTML = html;
+
+  // --- combination table
+  let t = `<tr><th>ชื่อ combination</th>${state.loadCases.map(c=>`<th>${escHtml(c.name)}</th>`).join('')}<th></th></tr>`;
+  state.combos.forEach(k=>{
+    t += `<tr><td><input class="cname" type="text" value="${escHtml(k.name)}" data-combo-name="${k.id}" aria-label="ชื่อ combination"></td>`;
+    state.loadCases.forEach(c=>{
+      const f = k.factors[c.id];
+      const v = (typeof f === 'number') ? round4(f) : 0;
+      t += `<td><input type="text" inputmode="decimal" value="${v}" class="${v===0?'zero':''}" data-combo-id="${k.id}" data-case-id="${c.id}" aria-label="factor ${escHtml(c.name)} ใน ${escHtml(k.name)}"></td>`;
+    });
+    t += `<td><button class="x danger" data-combo-del="${k.id}" title="ลบ combination นี้">✕</button></td></tr>`;
+  });
+  comboTableEl.innerHTML = t;
+  renderComboSelectors();
+
+  // --- events
+  caseListEl.querySelectorAll('[data-case-name]').forEach(inp=> inp.addEventListener('change', (e)=>{
+    const c = state.loadCases.find(c=>c.id===e.target.dataset.caseName);
+    const v = e.target.value.trim();
+    if (c && v) c.name = v;
+    renderLoadSystemPanel(); recompute();
+  }));
+  caseListEl.querySelectorAll('[data-case-del]').forEach(btn=> btn.addEventListener('click', (e)=>{
+    const id = e.currentTarget.dataset.caseDel;
+    if (state.loadCases.length <= 1){ showToast('ต้องมี load case อย่างน้อย 1 อัน'); return; }
+    const inUse = state.loads.filter(l=>l.cat===id).length;
+    const name = caseName(id);
+    state.loadCases = state.loadCases.filter(c=>c.id!==id);
+    const fallback = state.loadCases[0].id;
+    state.loads.forEach(l=>{ if (l.cat===id) l.cat = fallback; });
+    state.combos.forEach(k=>{ delete k.factors[id]; });
+    if (state.section.swCase === id) state.section.swCase = fallback;
+    if (inUse) showToast(`ลบ ${name} แล้ว — ย้ายแรง ${inUse} รายการไปที่ ${caseName(fallback)}`);
+    renderLoadSystemPanel(); recompute();
+  }));
+  $('#addCase').addEventListener('click', ()=>{
+    let n = state.loadCases.length + 1, name;
+    do { name = `CASE${n++}`; } while (state.loadCases.some(c=>c.name===name));
+    const id = uid('c');
+    state.loadCases.push({id, name});
+    state.combos.forEach(k=>{ k.factors[id] = 0; });
+    renderLoadSystemPanel(); recompute();
+    const inp = caseListEl.querySelector(`[data-case-name="${id}"]`);
+    if (inp){ inp.focus(); inp.select(); }
+  });
+  $('#swCaseSel').addEventListener('change', (e)=>{ state.section.swCase = e.target.value; recompute(); });
+
+  comboTableEl.querySelectorAll('[data-combo-name]').forEach(inp=> inp.addEventListener('change', (e)=>{
+    const k = state.combos.find(k=>k.id===e.target.dataset.comboName);
+    const v = e.target.value.trim();
+    if (k && v) k.name = v;
+    renderLoadSystemPanel(); recompute();
+  }));
+  comboTableEl.querySelectorAll('[data-combo-id]').forEach(inp=> inp.addEventListener('change', (e)=>{
+    const k = state.combos.find(k=>k.id===e.target.dataset.comboId);
+    if (!k) return;
+    const cid = e.target.dataset.caseId;
+    const v = evalMathInput(e.target.value, k.factors[cid] || 0);
+    k.factors[cid] = isFinite(v) ? v : 0;
+    e.target.value = round4(k.factors[cid]);
+    e.target.classList.toggle('zero', k.factors[cid] === 0);
+    recompute();
+  }));
+  comboTableEl.querySelectorAll('[data-combo-del]').forEach(btn=> btn.addEventListener('click', (e)=>{
+    const id = e.currentTarget.dataset.comboDel;
+    if (state.combos.length <= 1){ showToast('ต้องมี combination อย่างน้อย 1 อัน'); return; }
+    state.combos = state.combos.filter(k=>k.id!==id);
+    if (state.showCombo === id) state.showCombo = state.combos[0].id;
+    if (state.deflCombo === id) state.deflCombo = state.combos[0].id;
+    renderLoadSystemPanel(); recompute();
+  }));
+}
+
+$('#addCombo').addEventListener('click', ()=>{
+  let n = state.combos.length + 1, name;
+  do { name = `COMB${n++}`; } while (state.combos.some(k=>k.name===name));
+  const factors = {};
+  state.loadCases.forEach(c=>{ factors[c.id] = 1; });
+  const id = uid('k');
+  state.combos.push({id, name, factors});
+  renderLoadSystemPanel(); recompute();
+  const inp = comboTableEl.querySelector(`[data-combo-name="${id}"]`);
+  if (inp){ inp.focus(); inp.select(); }
+});
+showComboSel.addEventListener('change', ()=>{ state.showCombo = showComboSel.value; recompute(); });
+deflComboSel.addEventListener('change', ()=>{ state.deflCombo = deflComboSel.value; recompute(); });
+
 /* ============== EVENTS: form inputs ============== */
 beamLengthInput.addEventListener('change', ()=>{
   recompute();
@@ -1834,41 +2017,20 @@ $('#addSupport').addEventListener('click', ()=>{
 });
 
 $('#addPoint').addEventListener('click', ()=>{
-  state.loads.push({id:nextId++, kind:'point', pos: state.L/2, mag:10, cat:'DL', active:true});
+  state.loads.push({id:nextId++, kind:'point', pos: state.L/2, mag:10, cat:defaultCaseId(), active:true});
   recompute();
 });
 $('#addUdl').addEventListener('click', ()=>{
-  state.loads.push({id:nextId++, kind:'udl', start:0, end:state.L, mag:2, cat:'DL', active:true});
+  state.loads.push({id:nextId++, kind:'udl', start:0, end:state.L, mag:2, cat:defaultCaseId(), active:true});
   recompute();
 });
 $('#addTri').addEventListener('click', ()=>{
-  state.loads.push({id:nextId++, kind:'tri', start:0, end:state.L, w1:0, w2:2, cat:'DL', active:true});
+  state.loads.push({id:nextId++, kind:'tri', start:0, end:state.L, w1:0, w2:2, cat:defaultCaseId(), active:true});
   recompute();
 });
 $('#addMoment').addEventListener('click', ()=>{
-  state.loads.push({id:nextId++, kind:'moment', pos: state.L/2, mag:5, cat:'DL', active:true});
+  state.loads.push({id:nextId++, kind:'moment', pos: state.L/2, mag:5, cat:defaultCaseId(), active:true});
   recompute();
-});
-
-/* ============== EVENTS: load combination ============== */
-const comboEnabledEl = $('#comboEnabled');
-const factorDLEl = $('#factorDL');
-const factorSDLEl = $('#factorSDL');
-const factorLLEl = $('#factorLL');
-comboEnabledEl.addEventListener('change', ()=>{
-  state.combo.enabled = comboEnabledEl.checked;
-  recompute();
-});
-[[factorDLEl,'DL'], [factorSDLEl,'SDL'], [factorLLEl,'LL']].forEach(([elInput, cat])=>{
-  elInput.addEventListener('change', ()=>{
-    state.combo.factors[cat] = evalMathInput(elInput.value, state.combo.factors[cat]) || 0;
-    elInput.value = round4(state.combo.factors[cat]);
-    recompute();
-  });
-  elInput.addEventListener('input', ()=>{
-    state.combo.factors[cat] = evalMathInput(elInput.value, state.combo.factors[cat]) || 0;
-    recompute();
-  });
 });
 
 /* ============== EVENTS: dragging on stage ============== */
@@ -1944,7 +2106,7 @@ stage.addEventListener('pointermove', (e)=>{
    เปิดไฟล์เก่าได้เสมอในแอปเวอร์ชันใหม่ (ถ้าเปลี่ยนโครงสร้าง state ให้เพิ่ม
    FILE_FORMAT แล้วเขียนตัวแปลงใน migrateState())
    ===================================================================== */
-const FILE_FORMAT = 1;
+const FILE_FORMAT = 2; // 2 = user load cases + named combinations
 const AUTOSAVE_KEY = 'beam2d:autosave';
 const PICKER_TYPES = [{ description: 'Beam 2D project (.beam)', accept: {'application/json': ['.beam']} }];
 
@@ -2007,10 +2169,9 @@ function migrateState(s, format){
   if (!s || !Array.isArray(s.supports) || !Array.isArray(s.loads) || typeof s.L !== 'number'){
     throw new Error('ข้อมูลในไฟล์ไม่ถูกต้อง');
   }
-  if (!s.combo) s.combo = { enabled:false, factors:{DL:1.4, SDL:1.4, LL:1.7} };
-  if (!s.combo.factors) s.combo.factors = {DL:1.4, SDL:1.4, LL:1.7};
   s.loads.forEach(l=>{ if (!l.cat) l.cat = 'DL'; });
   ensureSection(s);
+  ensureLoadSystem(s);
   return s;
 }
 
@@ -2021,11 +2182,8 @@ function applyState(s){
   nextId = (loadIds.length ? Math.max(...loadIds) : 0) + 1;
   nextSupportId = (supportIds.length ? Math.max(...supportIds) : 0) + 1;
   beamLengthInput.value = state.L;
-  comboEnabledEl.checked = !!state.combo.enabled;
-  factorDLEl.value = state.combo.factors.DL;
-  factorSDLEl.value = state.combo.factors.SDL;
-  factorLLEl.value = state.combo.factors.LL;
   renderSectionPanel();
+  renderLoadSystemPanel();
   syncDeflLimitUI();
   recompute();
 }
