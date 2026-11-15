@@ -38,6 +38,8 @@
     --shadow:rgba(0,0,0,0.35); --btn-shadow:#05070A;
     --toast-bg:#2A323D;    --toast-text:#E6EBF1;
     --panel-border:#2A323D;
+    --defl:#5FB0E0;        --defl-soft:#15303F;    --defl-ink:#A8D8F2;
+    --ok:#74B58A;          --ng:#E27C61;
     --panel-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 2px 4px rgba(0,0,0,0.35), 0 10px 28px rgba(0,0,0,0.45);
     color-scheme: dark;
   }
@@ -62,6 +64,8 @@
     --shadow:rgba(26,35,50,0.08); --btn-shadow:#1A2332;
     --toast-bg:#1A2332;    --toast-text:#FDFDFB;
     --panel-border:#D6D2C8;
+    --defl:#2C7DB0;        --defl-soft:#CFE6F4;    --defl-ink:#123E57;
+    --ok:#2F7A4A;          --ng:#C4432A;
     --panel-shadow: 0 1px 3px rgba(26,35,50,0.08), 0 8px 22px rgba(26,35,50,0.10);
     color-scheme: light;
   }
@@ -116,6 +120,19 @@
     box-shadow:0 2px 0 var(--btn-shadow);
   }
   #updateBar[hidden]{display:none;}
+  #readout{
+    position:fixed; left:0; right:0; bottom:14px; margin:0 auto; width:fit-content; z-index:998;
+    display:flex; gap:6px 14px; flex-wrap:wrap; justify-content:center; align-items:center;
+    padding:8px 14px; border-radius:10px;
+    background:var(--surface-2); border:1px solid var(--panel-border); box-shadow:var(--panel-shadow);
+    font-family:'JetBrains Mono',monospace; font-size:0.82rem; color:var(--text);
+    max-width:calc(100vw - 24px); pointer-events:auto;
+  }
+  #readout[hidden]{display:none;}
+  #readout span{white-space:nowrap;}
+  #readout b{font-weight:700;}
+  #readout .ro-v{color:var(--shear);} #readout .ro-m{color:var(--moment);} #readout .ro-d{color:var(--defl);}
+  #readout button{padding:2px 8px; font-size:0.75rem;}
   #updateBar button{background:var(--accent-text); color:#1A2332; border-color:var(--accent-text); padding:5px 12px;}
 
   .panel{
@@ -221,6 +238,13 @@
     background:var(--input-bg); color:var(--text);
   }
   .load-row input:focus, .load-row select:focus{outline:2px solid var(--steel); outline-offset:1px;}
+  .load-row .toggle-active{
+    width:32px; height:32px; padding:0;
+    display:inline-flex; align-items:center; justify-content:center;
+    flex-shrink:0; color:var(--text);
+  }
+  .load-row .toggle-active svg{display:block;}
+  .load-row .toggle-active.is-off{color:var(--load);}
   .load-row .swatch{
     width:10px; height:10px; border-radius:2px; flex-shrink:0;
   }
@@ -253,6 +277,7 @@
     padding-left:6px;
   }
   .diagram-wrap{margin-bottom:18px;}
+  #sfdSvg, #bmdSvg, #deflSvg{cursor:crosshair; touch-action:pan-y; user-select:none; -webkit-user-select:none;}
   .diagram-wrap:last-child{margin-bottom:0;}
 
   /* results table */
@@ -280,6 +305,16 @@
     margin-left:6px;
   }
   .max-badge.shear{background:var(--shear-soft); color:var(--shear-ink);}
+  .max-badge.defl{background:var(--defl-soft); color:var(--defl-ink);}
+  .section-split{display:flex; gap:18px; flex-wrap:wrap; align-items:flex-start; padding:4px 16px 16px;}
+  #secPreview{width:190px; height:190px; flex-shrink:0; background:var(--surface-2); border:1px solid var(--line); border-radius:8px;}
+  #secProps{flex:1; min-width:260px; width:auto;}
+  #secProps td{padding:4px 10px;}
+  .sec-error{color:var(--ng); font-weight:600;}
+  .nt{text-transform:none;}
+  .tag-ok{color:var(--ok); font-weight:700;}
+  .tag-ng{color:var(--ng); font-weight:700;}
+  .field select.wide{min-width:200px;}
   .max-badge.moment{background:var(--moment-soft); color:var(--moment-ink);}
 
   footer{
@@ -304,6 +339,7 @@
 </style>
 </head>
 <body>
+<div id="readout" hidden aria-live="polite"></div>
 <div id="updateBar" hidden>
   <span>🔔 มี Beam 2D เวอร์ชันใหม่</span>
   <button id="updateBtn">อัปเดตเลย</button>
@@ -352,9 +388,41 @@
     <div class="controls" style="border-bottom:none; border-top:1px solid var(--line);">
       <button class="primary" id="addPoint">+ Point Load</button>
       <button class="primary" id="addUdl">+ UDL</button>
+      <button class="primary" id="addTri" title="แรงกระจายเชิงเส้น w₁ → w₂ (ใส่ 0 ด้านหนึ่ง = สามเหลี่ยม)">+ Triangle</button>
       <button class="primary" id="addMoment">+ Moment</button>
     </div>
     <div id="loadList"></div>
+  </div>
+
+  <!-- SECTION & MATERIAL -->
+  <div class="panel">
+    <div class="panel-head"><h2>หน้าตัดและวัสดุ (ใช้คำนวณการโก่งตัว)</h2></div>
+    <div class="controls">
+      <div class="field">
+        <label>ชนิดคาน</label>
+        <select id="matSel">
+          <option value="concrete">คานคอนกรีต (คสล.)</option>
+          <option value="steel">คานเหล็ก</option>
+        </select>
+      </div>
+      <div class="field" id="shapeField">
+        <label>รูปหน้าตัด</label>
+        <select id="shapeSel" class="wide"></select>
+      </div>
+      <div class="field" id="axisField">
+        <label>แกนดัด</label>
+        <select id="axisSel">
+          <option value="x">แกนหลัก (x-x)</option>
+          <option value="y">แกนรอง (y-y)</option>
+        </select>
+      </div>
+    </div>
+    <div class="controls" id="dimFields" style="border-bottom:none;"></div>
+    <div class="section-split">
+      <svg id="secPreview" viewBox="0 0 200 200" aria-label="ภาพหน้าตัด"></svg>
+      <table id="secProps"><tbody></tbody></table>
+    </div>
+    <div class="hint" id="secHint"></div>
   </div>
 
   <!-- LOAD COMBINATION -->
@@ -407,6 +475,7 @@
       <div class="diagram-wrap">
         <svg id="sfdSvg" viewBox="0 0 900 200" preserveAspectRatio="xMidYMid meet" style="width:100%; height:auto;"></svg>
       </div>
+      <div class="hint" style="padding:6px 0 0; border:none; background:none;">ชี้เมาส์ หรือแตะแล้วลากไปตามกราฟ SFD / BMD / Deflection เพื่ออ่านค่า ณ ตำแหน่งนั้น — เส้นอ่านค่าจะซิงก์กันทุกกราฟ</div>
     </div>
   </div>
 
@@ -420,10 +489,189 @@
     </div>
   </div>
 
+  <!-- DEFLECTION -->
+  <div class="panel">
+    <div class="panel-head"><h2>Deflection — การโก่งตัว (Service Load) <span id="maxDefl" class="max-badge defl"></span></h2></div>
+    <div class="controls">
+      <div class="field">
+        <label>เกณฑ์ยอมให้ <span class="nt">δ</span> ≤ L / n</label>
+        <select id="deflLimitSel">
+          <option value="180">L/180</option>
+          <option value="240">L/240</option>
+          <option value="360">L/360</option>
+          <option value="480">L/480</option>
+          <option value="custom">กำหนดเอง</option>
+        </select>
+      </div>
+      <div class="field" id="deflCustomField">
+        <label>ค่า n</label>
+        <input type="text" inputmode="decimal" id="deflCustom" value="300">
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="diagram-wrap">
+        <svg id="deflSvg" viewBox="0 0 900 200" preserveAspectRatio="xMidYMid meet" style="width:100%; height:auto;"></svg>
+      </div>
+      <table id="deflTable"><tbody></tbody></table>
+      <div class="hint" style="padding:8px 0 0; border:none; background:none;">คิดจาก Service Load (factor = 1 ทุกประเภท แม้จะเปิด Factored Load อยู่) เป็นการโก่งตัวแบบยืดหยุ่นทันที (immediate) ยังไม่รวมการโก่งตัวระยะยาวจาก creep/shrinkage ของคอนกรีต · ช่วงยื่น (cantilever) ใช้ความยาวช่วงยื่นเป็น L · ค่าลบ = แอ่นลง</div>
+    </div>
+  </div>
+
   <footer>หน่วย: กำลัง (t), โมเมนต์ (t·m), ระยะ (m) · แรงลง = ค่าบวก · <span id="appVersion">Beam 2D</span></footer>
 </div>
 
 <script>
+/* =====================================================================
+   SECTION & MATERIAL — หน้าตัดและวัสดุ (หน่วย: มิติ mm, E/fc'/fy ksc)
+   คิดหน้าตัดเป็นผลรวมของสี่เหลี่ยม/วงกลม (ช่องว่างเป็นค่าลบ)
+   ไม่รวมรัศมีโค้งที่มุม (fillet) → I ต่ำกว่าตารางเหล็กเล็กน้อย
+   ===================================================================== */
+const STEEL_E_DEFAULT = 2040000; // ksc
+const STEEL_SHAPES = {
+  box:     { label:'ท่อเหล็กสี่เหลี่ยม (Box)',  dims:[['H','สูง H'],['B','กว้าง B'],['t','หนา t']],                       def:{H:150, B:100, t:4.5} },
+  pipe:    { label:'ท่อเหล็กกลม (Pipe)',        dims:[['D','ศก. D'],['t','หนา t']],                                      def:{D:114.3, t:4.5} },
+  channel: { label:'เหล็กรางน้ำ (Channel)',      dims:[['H','สูง H'],['B','ปีก B'],['tw','เอว tw'],['tf','ปีก tf']],        def:{H:150, B:75, tw:6.5, tf:10} },
+  hbeam:   { label:'เหล็ก H-Beam',               dims:[['H','สูง H'],['B','ปีก B'],['tw','เอว tw'],['tf','ปีก tf']],        def:{H:200, B:200, tw:8, tf:12} },
+  ibeam:   { label:'เหล็ก I-Beam',               dims:[['H','สูง H'],['B','ปีก B'],['tw','เอว tw'],['tf','ปีก tf']],        def:{H:200, B:100, tw:7, tf:10} },
+  angle:   { label:'เหล็กฉาก (Angle)',           dims:[['H','ขาตั้ง H'],['B','ขานอน B'],['t','หนา t']],                     def:{H:65, B:65, t:6} },
+  tee:     { label:'เหล็กตัว T (Tee)',           dims:[['H','ลึก H'],['B','ปีก B'],['tw','เอว tw'],['tf','ปีก tf']],        def:{H:100, B:100, tw:6, tf:8} },
+  rect:    { label:'เหล็กสี่เหลี่ยมตัน',           dims:[['H','สูง H'],['B','กว้าง B']],                                     def:{H:100, B:50} },
+  round:   { label:'เหล็กกลมตัน',                 dims:[['D','ศก. D']],                                                  def:{D:50} }
+};
+
+function defaultSection(){
+  const dims = {};
+  for (const k in STEEL_SHAPES) dims[k] = { ...STEEL_SHAPES[k].def };
+  return {
+    material: 'concrete',
+    concrete: { b:250, h:500, fc:240, factor:1.0 },
+    steel: { shape:'hbeam', dims, fy:2400, E:STEEL_E_DEFAULT, axis:'x' }
+  };
+}
+function ensureSection(s){
+  const def = defaultSection();
+  if (!s.section) s.section = def;
+  const sec = s.section;
+  sec.concrete = { ...def.concrete, ...(sec.concrete||{}) };
+  sec.steel = { ...def.steel, ...(sec.steel||{}) };
+  sec.steel.dims = sec.steel.dims || {};
+  for (const k in STEEL_SHAPES) sec.steel.dims[k] = { ...STEEL_SHAPES[k].def, ...(sec.steel.dims[k]||{}) };
+  if (!STEEL_SHAPES[sec.steel.shape]) sec.steel.shape = 'hbeam';
+  if (sec.material !== 'steel') sec.material = 'concrete';
+  if (!(s.deflLimit > 0)) s.deflLimit = 240;
+  return s;
+}
+
+/* geometry: origin at bottom-left of bounding box, x → right, y → up */
+function steelGeometry(shape, d){
+  const R = (x,y,w,h,s=1)=>({x,y,w,h,s});
+  const pos = (...v)=> v.every(n=>typeof n==='number' && n>0);
+  const bad = (msg)=>({error:msg});
+  switch(shape){
+    case 'box': {
+      const {H,B,t} = d; if (!pos(H,B,t)) return bad('มิติต้องมากกว่า 0');
+      if (2*t >= B || 2*t >= H) return bad('ความหนา t ต้องน้อยกว่าครึ่งของ B และ H');
+      return {W:B, H, rects:[R(0,0,B,H), R(t,t,B-2*t,H-2*t,-1)], circles:[]};
+    }
+    case 'pipe': {
+      const {D,t} = d; if (!pos(D,t)) return bad('มิติต้องมากกว่า 0');
+      if (2*t >= D) return bad('ความหนา t ต้องน้อยกว่าครึ่งของ D');
+      return {W:D, H:D, rects:[], circles:[{cx:D/2, cy:D/2, r:D/2, s:1},{cx:D/2, cy:D/2, r:D/2-t, s:-1}]};
+    }
+    case 'channel': {
+      const {H,B,tw,tf} = d; if (!pos(H,B,tw,tf)) return bad('มิติต้องมากกว่า 0');
+      if (tw >= B || 2*tf >= H) return bad('ต้องมี tw < B และ 2·tf < H');
+      return {W:B, H, rects:[R(0,0,tw,H), R(tw,0,B-tw,tf), R(tw,H-tf,B-tw,tf)], circles:[]};
+    }
+    case 'hbeam': case 'ibeam': {
+      const {H,B,tw,tf} = d; if (!pos(H,B,tw,tf)) return bad('มิติต้องมากกว่า 0');
+      if (tw >= B || 2*tf >= H) return bad('ต้องมี tw < B และ 2·tf < H');
+      return {W:B, H, rects:[R(0,0,B,tf), R(0,H-tf,B,tf), R((B-tw)/2,tf,tw,H-2*tf)], circles:[]};
+    }
+    case 'angle': {
+      const {H,B,t} = d; if (!pos(H,B,t)) return bad('มิติต้องมากกว่า 0');
+      if (t >= B || t >= H) return bad('ความหนา t ต้องน้อยกว่าความยาวขา');
+      return {W:B, H, rects:[R(0,0,t,H), R(t,0,B-t,t)], circles:[]};
+    }
+    case 'tee': {
+      const {H,B,tw,tf} = d; if (!pos(H,B,tw,tf)) return bad('มิติต้องมากกว่า 0');
+      if (tw >= B || tf >= H) return bad('ต้องมี tw < B และ tf < H');
+      return {W:B, H, rects:[R(0,H-tf,B,tf), R((B-tw)/2,0,tw,H-tf)], circles:[]};
+    }
+    case 'rect': {
+      const {H,B} = d; if (!pos(H,B)) return bad('มิติต้องมากกว่า 0');
+      return {W:B, H, rects:[R(0,0,B,H)], circles:[]};
+    }
+    case 'round': {
+      const {D} = d; if (!pos(D)) return bad('มิติต้องมากกว่า 0');
+      return {W:D, H:D, rects:[], circles:[{cx:D/2, cy:D/2, r:D/2, s:1}]};
+    }
+  }
+  return bad('ไม่รู้จักหน้าตัด');
+}
+
+function geometryProps(g){
+  let A=0, Sx=0, Sy=0;
+  g.rects.forEach(r=>{ const a=r.s*r.w*r.h; A+=a; Sx+=a*(r.x+r.w/2); Sy+=a*(r.y+r.h/2); });
+  g.circles.forEach(c=>{ const a=c.s*Math.PI*c.r*c.r; A+=a; Sx+=a*c.cx; Sy+=a*c.cy; });
+  const xc = Sx/A, yc = Sy/A;
+  let Ix=0, Iy=0;
+  g.rects.forEach(r=>{
+    const a=r.w*r.h, dy=(r.y+r.h/2)-yc, dx=(r.x+r.w/2)-xc;
+    Ix += r.s*(r.w*r.h**3/12 + a*dy*dy);
+    Iy += r.s*(r.h*r.w**3/12 + a*dx*dx);
+  });
+  g.circles.forEach(c=>{
+    const a=Math.PI*c.r*c.r, I0=Math.PI*c.r**4/4, dy=c.cy-yc, dx=c.cx-xc;
+    Ix += c.s*(I0 + a*dy*dy);
+    Iy += c.s*(I0 + a*dx*dx);
+  });
+  const Sxm = Ix/Math.max(yc, g.H-yc);
+  const Sym = Iy/Math.max(xc, g.W-xc);
+  return {A, xc, yc, Ix, Iy, Sx:Sxm, Sy:Sym};
+}
+
+/* returns everything the UI and the deflection solver need */
+function sectionProps(){
+  const sec = state.section;
+  if (sec.material === 'concrete'){
+    const c = sec.concrete;
+    if (!(c.b>0 && c.h>0)) return {valid:false, error:'b และ h ต้องมากกว่า 0'};
+    if (!(c.fc>0)) return {valid:false, error:"fc' ต้องมากกว่า 0"};
+    if (!(c.factor>0)) return {valid:false, error:'ตัวคูณ I ต้องมากกว่า 0'};
+    const E = 15100*Math.sqrt(c.fc);           // ksc
+    const Ig = c.b*c.h**3/12;                    // mm⁴
+    const I = Ig*c.factor;
+    const A = c.b*c.h;
+    return {
+      valid:true, material:'concrete', E, Ig, I, A, S: Ig/(c.h/2),
+      weight: A*1e-6*2400,                        // kg/m
+      EI: E*10 * I*1e-12,                         // t·m²
+      geom: {W:c.b, H:c.h, rects:[{x:0,y:0,w:c.b,h:c.h,s:1}], circles:[]}, yc:c.h/2, xc:c.b/2, axis:'x'
+    };
+  }
+  const st = sec.steel;
+  const g = steelGeometry(st.shape, st.dims[st.shape]);
+  if (g.error) return {valid:false, error:g.error};
+  if (!(st.E>0)) return {valid:false, error:'E ต้องมากกว่า 0'};
+  const p = geometryProps(g);
+  const I = st.axis==='y' ? p.Iy : p.Ix;
+  const S = st.axis==='y' ? p.Sy : p.Sx;
+  return {
+    valid:true, material:'steel', E:st.E, I, S, A:p.A, Ix:p.Ix, Iy:p.Iy, Sx:p.Sx, Sy:p.Sy, fy:st.fy,
+    weight: p.A*1e-6*7850, EI: st.E*10 * I*1e-12,
+    geom:g, xc:p.xc, yc:p.yc, axis:st.axis
+  };
+}
+
+/* ---- number formatting helpers ---- */
+function fmtSig(n, d=3){
+  if (!isFinite(n)) return '—';
+  const a = Math.abs(n);
+  if (a !== 0 && (a >= 1e6 || a < 1e-3)) return n.toExponential(d-1).replace('e+', '×10^').replace('e-', '×10^-');
+  return n.toLocaleString('en-US', {maximumFractionDigits: a>=100?0:(a>=10?1:2)});
+}
+
 /* ============== STATE ============== */
 function defaultState(){
   return {
@@ -439,7 +687,9 @@ function defaultState(){
     combo: {
       enabled: false,
       factors: { DL:1.4, SDL:1.4, LL:1.7 }
-    }
+    },
+    section: defaultSection(),
+    deflLimit: 240
   };
 }
 let state = defaultState();
@@ -509,13 +759,47 @@ function evalMathInput(str, fallback){
 }
 
 /* ============== LOAD COMBINATION (FACTORED LOADS) ============== */
+let serviceMode = false; // true = ใช้ factor 1 (สำหรับคำนวณการโก่งตัว)
 function loadFactor(cat){
-  if (!state.combo.enabled) return 1;
+  if (serviceMode || !state.combo.enabled) return 1;
   return state.combo.factors[cat || 'DL'] ?? 1;
 }
 function effMag(ld){
   if (ld.active === false) return 0;
   return ld.mag * loadFactor(ld.cat);
+}
+function effVal(ld, v){
+  if (ld.active === false) return 0;
+  return v * loadFactor(ld.cat);
+}
+// distributed loads: 'udl' (uniform) and 'tri' (linear w1 → w2; triangle when one end is 0)
+function isDist(ld){ return ld.kind === 'udl' || ld.kind === 'tri'; }
+// effective (factored) intensity at x, downward +, x assumed within [start, end]
+function distAt(ld, x){
+  if (ld.kind === 'udl') return effMag(ld);
+  const len = ld.end - ld.start;
+  const t = len > 0 ? clamp((x - ld.start)/len, 0, 1) : 0;
+  return effVal(ld, ld.w1 + (ld.w2 - ld.w1)*t);
+}
+// resultant force and moment about x of the part of a distributed load left of x
+function distLeftOf(ld, x){
+  const a = ld.start, c = Math.min(ld.end, x);
+  if (!(c > a)) return {F:0, M:0};
+  const qa = distAt(ld, a);
+  const k = ld.end > a ? (distAt(ld, ld.end) - qa)/(ld.end - a) : 0;
+  const u = c - a, xa = x - a;
+  return {
+    F: qa*u + k*u*u/2,
+    M: qa*(xa*u - u*u/2) + k*(xa*u*u/2 - u*u*u/3)
+  };
+}
+function triLabelText(ld){
+  const cat = ld.cat || 'DL';
+  const off = ld.active === false ? ' [ปิด]' : '';
+  const f = (v)=> Math.abs(v).toFixed(1);
+  if (!state.combo.enabled) return `${f(ld.w1)}→${f(ld.w2)}t/m (${cat})${off}`;
+  const k = loadFactor(cat);
+  return `${f(ld.w1)}→${f(ld.w2)}×${k} (${cat}) = ${f(ld.w1*k)}→${f(ld.w2*k)}t/m${off}`;
 }
 function loadLabelText(ld, unit){
   const base = `${Math.abs(ld.mag).toFixed(1)}${unit}`;
@@ -600,7 +884,7 @@ function solveReactions(){
   supports.forEach(s=>xset.add(round4(s.pos)));
   state.loads.forEach(ld=>{
     if (ld.kind==='point' || ld.kind==='moment') xset.add(round4(clamp(ld.pos,0,L)));
-    if (ld.kind==='udl'){ xset.add(round4(clamp(ld.start,0,L))); xset.add(round4(clamp(ld.end,0,L))); }
+    if (isDist(ld)){ xset.add(round4(clamp(ld.start,0,L))); xset.add(round4(clamp(ld.end,0,L))); }
   });
   let nodes = Array.from(xset).sort((a,b)=>a-b);
   nodes = nodes.filter((x,i)=> i===0 || x-nodes[i-1] > eps);
@@ -629,6 +913,7 @@ function solveReactions(){
     }
   });
 
+  const ew = []; // per element [q1, q2]: distributed intensity at its ends (t/m, downward +)
   for (let e=0;e<n-1;e++){
     const x1=nodes[e], x2=nodes[e+1], Le=x2-x1;
     if (Le < eps) continue;
@@ -643,16 +928,23 @@ function solveReactions(){
     const map = [2*i1, 2*i1+1, 2*i2, 2*i2+1];
     for (let a=0;a<4;a++) for (let b=0;b<4;b++) K[map[a]][map[b]] += ke[a][b];
 
-    let wtotal = 0;
+    // nodes sit on every load boundary, so each distributed load covers an element fully or not at all
+    let q1 = 0, q2 = 0;
     state.loads.forEach(ld=>{
-      if (ld.kind==='udl'){
+      if (isDist(ld)){
         const a = Math.max(ld.start, x1), b = Math.min(ld.end, x2);
-        if (b - a > eps && a<=x1+eps && b>=x2-eps) wtotal += effMag(ld);
+        if (b - a > eps && a<=x1+eps && b>=x2-eps){ q1 += distAt(ld, x1); q2 += distAt(ld, x2); }
       }
     });
-    if (wtotal !== 0){
-      const q = -wtotal;
-      const fe = [q*Le/2, q*Le*Le/12, q*Le/2, -q*Le*Le/12];
+    ew[e] = [q1, q2];
+    if (q1 !== 0 || q2 !== 0){
+      // consistent nodal loads for a linearly varying load (uniform when q1 = q2)
+      const fe = [
+        -Le*(7*q1+3*q2)/20,
+        -Le*Le*(3*q1+2*q2)/60,
+        -Le*(3*q1+7*q2)/20,
+         Le*Le*(2*q1+3*q2)/60
+      ];
       for (let a=0;a<4;a++) F[map[a]] += fe[a];
     }
   }
@@ -688,6 +980,7 @@ function solveReactions(){
     result.reactions[s.key] = out;
   });
 
+  result.fem = { nodes, d, EIref: EI, ew };
   return result;
 }
 
@@ -703,9 +996,8 @@ function shearAt(x, reactionResult){
   for (const ld of state.loads){
     if (ld.kind === 'point'){
       if (ld.pos <= x + 1e-9) V -= effMag(ld);
-    } else if (ld.kind === 'udl'){
-      const a = ld.start, b = Math.min(ld.end, x);
-      if (b > a) V -= effMag(ld) * (b - a);
+    } else if (isDist(ld)){
+      V -= distLeftOf(ld, x).F;
     }
   }
   return V;
@@ -726,13 +1018,8 @@ function momentAt(x, reactionResult){
   for (const ld of state.loads){
     if (ld.kind === 'point'){
       if (ld.pos <= x + 1e-9) M -= effMag(ld) * (x - ld.pos);
-    } else if (ld.kind === 'udl'){
-      const a = ld.start, b = Math.min(ld.end, x);
-      if (b > a){
-        const w = effMag(ld);
-        const centroid = (a + b)/2;
-        M -= w*(b-a) * (x - centroid);
-      }
+    } else if (isDist(ld)){
+      M -= distLeftOf(ld, x).M;
     } else if (ld.kind === 'moment'){
       if (ld.pos <= x + 1e-9) M += effMag(ld);
     }
@@ -749,7 +1036,7 @@ function computeDiagrams(reactionResult, nSteps=240){
   supports.forEach(s=>critical.add(round4(s.pos)));
   state.loads.forEach(ld=>{
     if (ld.kind==='point' || ld.kind==='moment') critical.add(round4(ld.pos));
-    if (ld.kind==='udl'){ critical.add(round4(ld.start)); critical.add(round4(ld.end)); }
+    if (isDist(ld)){ critical.add(round4(ld.start)); critical.add(round4(ld.end)); }
   });
 
   for (let i=0;i<=nSteps;i++){
@@ -870,6 +1157,37 @@ function drawLoad(ld, beamY){
     el('rect', {x:xB-3,y:beamY-3,width:6,height:6, fill:color, 'pointer-events':'none', opacity:groupOpacity}, stage);
 
     el('rect', {x:xA+9, y:Math.min(topY,beamY)-6, width:Math.max(2,(xB-xA)-18), height:Math.abs(beamY-topY)+12, fill:'transparent', class:'udl-drag-body', 'data-id':ld.id, style:'cursor:grab'}, stage);
+  } else if (ld.kind === 'tri'){
+    const xA = xToSvg(clamp(ld.start,0,state.L));
+    const xB = xToSvg(clamp(ld.end,0,state.L));
+    const maxAbs = Math.max(Math.abs(ld.w1), Math.abs(ld.w2)) || 1;
+    const hgt = (w)=> 40 * w / maxAbs;                 // signed height (down-load = above beam)
+    const topA = beamY - hgt(ld.w1), topB = beamY - hgt(ld.w2);
+    const g = el('g', {class:'udl-drag', 'data-id':ld.id, opacity:groupOpacity}, stage);
+    el('polygon', {points:`${xA},${beamY} ${xA},${topA} ${xB},${topB} ${xB},${beamY}`, fill:color, 'fill-opacity':'0.12', stroke:'none'}, g);
+    el('line', {x1:xA,y1:topA,x2:xB,y2:topB, stroke:color,'stroke-width':2}, g);
+    const n = Math.max(3, Math.round((xB-xA)/22));
+    for (let i=0;i<=n;i++){
+      const t = i/n, x = xA + (xB-xA)*t;
+      const hv = hgt(ld.w1 + (ld.w2-ld.w1)*t);
+      if (Math.abs(hv) < 6) continue;
+      const dir = hv > 0 ? 1 : -1;
+      el('line', {x1:x,y1:beamY-hv,x2:x,y2:beamY-3*dir, stroke:color,'stroke-width':1.6}, g);
+      const ah=5;
+      el('polygon', {points:`${x},${beamY-1*dir} ${x-ah/1.5},${beamY-(1+ah*0.9)*dir} ${x+ah/1.5},${beamY-(1+ah*0.9)*dir}`, fill:color}, g);
+    }
+    // label sits above the larger end so it doesn't collide with centred UDL/point labels
+    const bigRight = Math.abs(ld.w2) >= Math.abs(ld.w1);
+    const lx = bigRight ? xB : xA, ly = Math.min(bigRight ? topB : topA, beamY) - 8;
+    const txt = el('text', {x:lx, y:ly, 'text-anchor': bigRight ? 'end' : 'start','font-size':'11','font-family':'JetBrains Mono, monospace','font-weight':'700', fill:color}, g);
+    txt.textContent = triLabelText(ld);
+
+    el('circle', {cx:xA, cy:beamY, r:9, fill:color, opacity:'0.001', class:'udl-handle', 'data-id':ld.id, 'data-end':'start', style:'cursor:ew-resize'}, stage);
+    el('circle', {cx:xB, cy:beamY, r:9, fill:color, opacity:'0.001', class:'udl-handle', 'data-id':ld.id, 'data-end':'end', style:'cursor:ew-resize'}, stage);
+    el('rect', {x:xA-3,y:beamY-3,width:6,height:6, fill:color, 'pointer-events':'none', opacity:groupOpacity}, stage);
+    el('rect', {x:xB-3,y:beamY-3,width:6,height:6, fill:color, 'pointer-events':'none', opacity:groupOpacity}, stage);
+    const bodyTop = Math.min(topA, topB, beamY), bodyBot = Math.max(topA, topB, beamY);
+    el('rect', {x:xA+9, y:bodyTop-6, width:Math.max(2,(xB-xA)-18), height:bodyBot-bodyTop+12, fill:'transparent', class:'udl-drag-body', 'data-id':ld.id, style:'cursor:grab'}, stage);
   } else if (ld.kind === 'moment'){
     const px = xToSvg(clamp(ld.pos,0,state.L));
     const g = el('g', {class:'load-drag', 'data-id':ld.id, style:'cursor:grab', opacity:groupOpacity}, stage);
@@ -941,6 +1259,7 @@ function renderDiagram(svg, xs, ys, color, unit){
   });
 
   el('text', {x:12, y:14, 'font-size':'10','font-family':'JetBrains Mono, monospace', fill:'var(--axis-text)'}, svg).textContent = unit;
+  svg._map = { xScale, yScale, top: marginTop, bottom: H - marginBottom, color, W };
 }
 
 /* ============== MAIN RECOMPUTE ============== */
@@ -950,6 +1269,7 @@ function recompute(){
   relabelSupports();
 
   const reactionResult = solveReactions();
+  const sp = sectionProps();
   renderReactionTable(reactionResult);
   renderSupportValuesTable(reactionResult);
 
@@ -963,16 +1283,28 @@ function recompute(){
     const mLabel = state.combo.enabled ? 'Mu' : 'M';
     $('#maxShear').textContent = `max |${vLabel}| = ${maxV.toFixed(2)} t`;
     $('#maxMoment').textContent = `max |${mLabel}| = ${maxM.toFixed(2)} t·m`;
+    renderSectionProps(sp, maxM);
+    // deflection always from service loads (factor 1)
+    let svc = reactionResult;
+    if (state.combo.enabled){
+      serviceMode = true;
+      try { svc = solveReactions(); } finally { serviceMode = false; }
+    }
+    renderDeflection(svc, sp);
   } else {
     sfdSvg.innerHTML = '';
     bmdSvg.innerHTML = '';
     $('#maxShear').textContent = '';
     $('#maxMoment').textContent = '';
+    renderSectionProps(sp, NaN);
+    renderDeflection(null, sp, reactionResult.message);
   }
 
   renderStage();
   renderLoadList();
   renderSupportList();
+  lastCalc = reactionResult.valid ? { R: reactionResult } : null;
+  drawCursor();
   onStateChanged();
 }
 
@@ -1025,7 +1357,10 @@ function renderSupportValuesTable(result){
     const vLeft = atLeftEnd ? '—' : fmt(vLeftNum);
     const vRight = atRightEnd ? '—' : fmt(vRightNum);
     const rJump = fmt(vRightNum - vLeftNum);
-    const m = fmt(momentAt(s.pos, result));
+    // at a fixed support on the right end, report the beam moment just left of the support
+    // (momentAt(L) already includes the reaction couple and closes to zero)
+    const rr = result.reactions[s.key];
+    const m = fmt(momentAt(s.pos, result) - (atRightEnd && rr && rr.M ? rr.M : 0));
     const tr = document.createElement('tr');
     tr.innerHTML = `<td>${s.key} (${supportLabel(s.type)})</td><td class="num">${vLeft}</td><td class="num">${vRight}</td><td class="num">${rJump}</td><td class="num">${m}</td>`;
     supportValuesTable.appendChild(tr);
@@ -1074,6 +1409,9 @@ function renderSupportList(){
   });
 }
 
+const ICON_EYE = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>`;
+const ICON_EYE_OFF = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><line x1="3" y1="3" x2="21" y2="21"/></svg>`;
+
 function renderLoadList(){
   loadListEl.innerHTML = '';
   state.loads.forEach(ld=>{
@@ -1087,6 +1425,8 @@ function renderLoadList(){
       fields = `Point @ <input type="text" inputmode="decimal" value="${ld.pos}" data-id="${ld.id}" data-field="pos" style="width:64px;"> m &nbsp; P=<input type="text" inputmode="decimal" value="${ld.mag}" data-id="${ld.id}" data-field="mag" style="width:64px;"> t`;
     } else if (ld.kind === 'udl'){
       fields = `UDL <input type="text" inputmode="decimal" value="${ld.start}" data-id="${ld.id}" data-field="start" style="width:56px;">→<input type="text" inputmode="decimal" value="${ld.end}" data-id="${ld.id}" data-field="end" style="width:56px;"> m &nbsp; w=<input type="text" inputmode="decimal" value="${ld.mag}" data-id="${ld.id}" data-field="mag" style="width:56px;"> t/m`;
+    } else if (ld.kind === 'tri'){
+      fields = `Tri <input type="text" inputmode="decimal" value="${ld.start}" data-id="${ld.id}" data-field="start" style="width:56px;">→<input type="text" inputmode="decimal" value="${ld.end}" data-id="${ld.id}" data-field="end" style="width:56px;"> m &nbsp; w₁=<input type="text" inputmode="decimal" value="${ld.w1}" data-id="${ld.id}" data-field="w1" style="width:52px;"> w₂=<input type="text" inputmode="decimal" value="${ld.w2}" data-id="${ld.id}" data-field="w2" style="width:52px;"> t/m`;
     } else if (ld.kind === 'moment'){
       fields = `Moment @ <input type="text" inputmode="decimal" value="${ld.pos}" data-id="${ld.id}" data-field="pos" style="width:64px;"> m &nbsp; M=<input type="text" inputmode="decimal" value="${ld.mag}" data-id="${ld.id}" data-field="mag" style="width:64px;"> t·m`;
     }
@@ -1094,7 +1434,7 @@ function renderLoadList(){
       `<option value="${c}" ${((ld.cat||'DL')===c)?'selected':''}>${c}</option>`
     ).join('');
     const catSelect = `<select data-id="${ld.id}" data-field="cat">${catOptions}</select>`;
-    const toggleBtn = `<button class="toggle-active" data-toggle-active="${ld.id}" title="${isActive?'ปิดใช้งานแรงนี้ (ไม่ลบ)':'เปิดใช้งานแรงนี้'}" style="width:30px;">${isActive?'👁':'🚫'}</button>`;
+    const toggleBtn = `<button class="toggle-active${isActive?'':' is-off'}" data-toggle-active="${ld.id}" title="${isActive?'ปิดใช้งานแรงนี้ (ไม่ลบ)':'เปิดใช้งานแรงนี้'}" aria-label="${isActive?'ปิดใช้งานแรงนี้':'เปิดใช้งานแรงนี้'}" aria-pressed="${!isActive}">${isActive?ICON_EYE:ICON_EYE_OFF}</button>`;
     row.innerHTML = `<span class="swatch" style="background:${color}"></span>${toggleBtn}${catSelect}${fields}<button class="rm danger" data-remove="${ld.id}">ลบ</button>`;
     loadListEl.appendChild(row);
   });
@@ -1123,7 +1463,7 @@ function renderLoadList(){
   });
   loadListEl.querySelectorAll('[data-toggle-active]').forEach(btn=>{
     btn.addEventListener('click', (e)=>{
-      const id = parseInt(e.target.dataset.toggleActive);
+      const id = parseInt(e.currentTarget.dataset.toggleActive);
       const ld = state.loads.find(l=>l.id===id);
       if (ld) {
         ld.active = ld.active === false ? true : false;
@@ -1139,6 +1479,290 @@ function renderLoadList(){
     });
   });
 }
+
+/* ============== SECTION PANEL UI ============== */
+const matSel = $('#matSel'), shapeSel = $('#shapeSel'), axisSel = $('#axisSel');
+const dimFieldsEl = $('#dimFields'), secPreview = $('#secPreview'), secPropsEl = $('#secProps tbody'), secHint = $('#secHint');
+shapeSel.innerHTML = Object.entries(STEEL_SHAPES).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join('');
+
+function numField(label, value, key, unit){
+  return `<div class="field"><label>${label}${unit?` (${unit})`:''}</label><input type="text" inputmode="decimal" data-sec="${key}" value="${value}"></div>`;
+}
+
+// rebuild the input fields (only when material/shape changes, so typing never loses focus)
+function renderSectionPanel(){
+  const sec = state.section;
+  matSel.value = sec.material;
+  const isSteel = sec.material === 'steel';
+  $('#shapeField').style.display = isSteel ? '' : 'none';
+  $('#axisField').style.display = isSteel ? '' : 'none';
+  let html = '';
+  if (!isSteel){
+    const c = sec.concrete;
+    html += numField('กว้าง b', c.b, 'c.b', 'mm');
+    html += numField('ลึก h', c.h, 'c.h', 'mm');
+    html += numField("fc'", c.fc, 'c.fc', 'ksc');
+    html += numField('ตัวคูณ I', c.factor, 'c.factor', '× Ig');
+    secHint.textContent = "Ec = 15,100√fc' (ksc) · Ieff = ตัวคูณ × Ig (Ig = bh³/12 หน้าตัดเต็มไม่คิดเหล็กเสริม) · ใช้ 1.0 = ไม่คิดการแตกร้าว, ประมาณ 0.35–0.5 สำหรับคานที่แตกร้าว";
+  } else {
+    const st = sec.steel;
+    shapeSel.value = st.shape;
+    axisSel.value = st.axis;
+    const d = st.dims[st.shape];
+    STEEL_SHAPES[st.shape].dims.forEach(([k,label])=>{ html += numField(label, d[k], 'd.'+k, 'mm'); });
+    html += numField('fy', st.fy, 's.fy', 'ksc');
+    html += numField('E', st.E, 's.E', 'ksc');
+    secHint.textContent = 'คิดหน้าตัดจากแผ่นเหล็กตรง ไม่รวมรัศมีโค้งที่มุม (fillet) ค่า I จึงต่ำกว่าตารางเหล็กเล็กน้อย (ปลอดภัยสำหรับการโก่งตัว) · เหล็กฉากใช้แกน x-x / y-y ที่ขนานกับขา (ไม่ใช่แกนหลักเอียง)';
+  }
+  dimFieldsEl.innerHTML = html;
+  dimFieldsEl.querySelectorAll('[data-sec]').forEach(inp=>{
+    inp.addEventListener('change', (e)=>{
+      const [grp, key] = e.target.dataset.sec.split('.');
+      const sec = state.section;
+      const target = grp==='c' ? sec.concrete : grp==='s' ? sec.steel : sec.steel.dims[sec.steel.shape];
+      const v = evalMathInput(e.target.value, target[key]);
+      target[key] = isNaN(v) ? target[key] : v;
+      e.target.value = round4(target[key]);
+      recompute();
+    });
+  });
+}
+
+function renderSectionPreview(sp){
+  secPreview.innerHTML = '';
+  if (!sp.valid) return;
+  const g = sp.geom, pad = 22, box = 200 - 2*pad;
+  const sc = box / Math.max(g.W, g.H);
+  const ox = pad + (box - g.W*sc)/2, oy = pad + (box - g.H*sc)/2;
+  const X = x=> ox + x*sc, Y = y=> oy + (g.H - y)*sc; // flip y
+  // build one path with even-odd fill so holes are cut out
+  let d = '';
+  g.rects.forEach(r=>{ d += `M${X(r.x)} ${Y(r.y)} H${X(r.x+r.w)} V${Y(r.y+r.h)} H${X(r.x)} Z `; });
+  g.circles.forEach(c=>{
+    const cx=X(c.cx), cy=Y(c.cy), r=c.r*sc;
+    d += `M${cx-r} ${cy} a${r} ${r} 0 1 0 ${2*r} 0 a${r} ${r} 0 1 0 ${-2*r} 0 Z `;
+  });
+  el('path', {d, fill:'var(--steel)', 'fill-opacity':'0.6', 'fill-rule':'evenodd'}, secPreview);
+  // bending axis through centroid
+  if (sp.axis === 'y'){
+    const x = X(sp.xc);
+    el('line', {x1:x, y1:8, x2:x, y2:192, stroke:'var(--load)', 'stroke-width':1, 'stroke-dasharray':'4 3'}, secPreview);
+    el('text', {x:x+4, y:16, 'font-size':'10', 'font-family':'JetBrains Mono, monospace', fill:'var(--load)'}, secPreview).textContent = 'y';
+  } else {
+    const y = Y(sp.yc);
+    el('line', {x1:8, y1:y, x2:192, y2:y, stroke:'var(--load)', 'stroke-width':1, 'stroke-dasharray':'4 3'}, secPreview);
+    el('text', {x:186, y:y-4, 'text-anchor':'end', 'font-size':'10', 'font-family':'JetBrains Mono, monospace', fill:'var(--load)'}, secPreview).textContent = 'x';
+  }
+  el('circle', {cx:X(sp.xc), cy:Y(sp.yc), r:2.5, fill:'var(--load)'}, secPreview);
+}
+
+// update the computed-properties table (cheap; runs on every recompute)
+function renderSectionProps(sp, maxM){
+  renderSectionPreview(sp);
+  secPropsEl.innerHTML = '';
+  const row = (k, v, cls='')=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td>${k}</td><td class="num ${cls}">${v}</td>`; secPropsEl.appendChild(tr); };
+  if (!sp.valid){ row('⚠', `<span class="sec-error">${sp.error}</span>`); return; }
+  if (sp.material === 'concrete'){
+    row('Ec', `${fmtSig(sp.E)} ksc`);
+    row('Ig = bh³/12', `${fmtSig(sp.Ig/1e4)} cm⁴`);
+    row(`Ieff = ${state.section.concrete.factor} × Ig`, `${fmtSig(sp.I/1e4)} cm⁴`);
+    row('A', `${fmtSig(sp.A/100)} cm²`);
+    row('น้ำหนักคาน', `${fmtSig(sp.weight)} kg/m`);
+  } else {
+    const ax = sp.axis === 'y' ? 'y' : 'x';
+    row('A', `${fmtSig(sp.A/100)} cm²`);
+    row('Ix', `${fmtSig(sp.Ix/1e4)} cm⁴`, ax==='x'?'tag-ok':'');
+    row('Iy', `${fmtSig(sp.Iy/1e4)} cm⁴`, ax==='y'?'tag-ok':'');
+    row(`S${ax} (ค่าน้อยสุด)`, `${fmtSig(sp.S/1e3)} cm³`);
+    row('น้ำหนักคาน', `${fmtSig(sp.weight)} kg/m`);
+    if (isFinite(maxM) && sp.S > 0){
+      const fb = maxM*1e8/sp.S; // ksc  (t·m → kg·cm = ×1e5 ; mm³ → cm³ = ÷1e3)
+      const lbl = state.combo.enabled ? 'fb = Mu,max / S' : 'fb = Mmax / S';
+      row(lbl, `${fmtSig(fb)} ksc`);
+      if (sp.fy > 0) row('fb / fy', `${(fb/sp.fy).toFixed(2)}`);
+    }
+  }
+  row('EI', `${fmtSig(sp.EI)} t·m²`);
+}
+
+matSel.addEventListener('change', ()=>{ state.section.material = matSel.value; renderSectionPanel(); recompute(); });
+shapeSel.addEventListener('change', ()=>{ state.section.steel.shape = shapeSel.value; renderSectionPanel(); recompute(); });
+axisSel.addEventListener('change', ()=>{ state.section.steel.axis = axisSel.value; recompute(); });
+
+/* ============== DEFLECTION ============== */
+const deflSvg = $('#deflSvg'), deflTable = $('#deflTable tbody');
+const deflLimitSel = $('#deflLimitSel'), deflCustom = $('#deflCustom'), deflCustomField = $('#deflCustomField');
+
+function syncDeflLimitUI(){
+  const n = state.deflLimit;
+  const preset = ['180','240','360','480'].includes(String(n));
+  deflLimitSel.value = preset ? String(n) : 'custom';
+  deflCustomField.style.display = preset ? 'none' : '';
+  if (!preset) deflCustom.value = n;
+}
+deflLimitSel.addEventListener('change', ()=>{
+  if (deflLimitSel.value === 'custom'){
+    deflCustomField.style.display = '';
+    state.deflLimit = evalMathInput(deflCustom.value, 300) || 300;
+  } else {
+    deflCustomField.style.display = 'none';
+    state.deflLimit = parseFloat(deflLimitSel.value);
+  }
+  recompute();
+});
+deflCustom.addEventListener('change', ()=>{
+  const v = evalMathInput(deflCustom.value, state.deflLimit);
+  if (v > 0) state.deflLimit = v;
+  deflCustom.value = round4(state.deflLimit);
+  recompute();
+});
+
+/* Exact elastic deflection inside each element:
+   Hermite interpolation of FEM nodal (v, θ) + fixed-end particular solution
+   for the element's UDL. FEM was solved with EIref, so scale by EIref/EIreal. */
+function computeDeflection(res, sp){
+  const { nodes, d, EIref, ew } = res.fem;
+  const scale = EIref / sp.EI;
+  const L = state.L;
+  const xs = [], v = [];
+  for (let e=0; e<nodes.length-1; e++){
+    const x1 = nodes[e], Le = nodes[e+1]-x1;
+    if (Le <= 0) continue;
+    const v1=d[2*e], t1=d[2*e+1], v2=d[2*e+2], t2=d[2*e+3];
+    const [q1, q2] = ew[e] || [0, 0];
+    const nSub = Math.max(4, Math.ceil(Le/L*300));
+    for (let k = (e===0?0:1); k<=nSub; k++){
+      const s = Le*k/nSub, xi = s/Le;
+      const N1 = 1-3*xi*xi+2*xi**3, N2 = Le*(xi-2*xi*xi+xi**3), N3 = 3*xi*xi-2*xi**3, N4 = Le*(-xi*xi+xi**3);
+      // fixed-end particular solution for a linear load q1 → q2 (reduces to w s²(L−s)²/24EI when uniform)
+      const vp = -s*s*(Le-s)*(Le-s)*((3*q1+2*q2)*Le - (q1-q2)*s)/(120*EIref*Le);
+      let vy = N1*v1 + N2*t1 + N3*v2 + N4*t2 + vp;
+      xs.push(x1+s); v.push(vy*scale*1000); // mm, up = +
+    }
+  }
+  return { xs, v };
+}
+
+function spanSegments(){
+  const L = state.L, sup = getActiveSupports().map(s=>s.pos);
+  const segs = [];
+  if (!sup.length) return segs;
+  const eps = 1e-6;
+  if (sup[0] > eps) segs.push({a:0, b:sup[0], kind:'cantilever', name:'ยื่นซ้าย'});
+  for (let i=0;i<sup.length-1;i++) segs.push({a:sup[i], b:sup[i+1], kind:'span', name:`ช่วง ${getActiveSupports()[i].key}–${getActiveSupports()[i+1].key}`});
+  if (sup[sup.length-1] < L-eps) segs.push({a:sup[sup.length-1], b:L, kind:'cantilever', name:'ยื่นขวา'});
+  return segs;
+}
+
+function renderDeflection(res, sp, invalidMsg){
+  lastDefl = null;
+  deflTable.innerHTML = '';
+  deflSvg.innerHTML = '';
+  $('#maxDefl').textContent = '';
+  const msgRow = (m)=>{ const tr=document.createElement('tr'); tr.innerHTML=`<td colspan="6" class="sec-error">⚠ ${m}</td>`; deflTable.appendChild(tr); };
+  if (!res){ msgRow(invalidMsg || 'คำนวณไม่ได้'); return; }
+  if (!sp.valid){ msgRow('หน้าตัดไม่ถูกต้อง: ' + sp.error); return; }
+  const { xs, v } = computeDeflection(res, sp);
+  lastDefl = { res, sp };
+  renderDiagram(deflSvg, xs, v, 'var(--defl)', 'δ (mm)');
+  const maxAbs = Math.max(...v.map(Math.abs));
+  $('#maxDefl').innerHTML = `max |<span class="nt">δ</span>| = ${maxAbs.toFixed(2)} mm`;
+
+  const n = state.deflLimit;
+  const head = document.createElement('tr');
+  head.innerHTML = `<th>ช่วง</th><th>L (m)</th><th><span class="nt">δ</span>max (mm)</th><th>ที่ x (m)</th><th><span class="nt">δ</span> ยอมให้ L/${round4(n)} (mm)</th><th>ผล</th>`;
+  deflTable.appendChild(head);
+  spanSegments().forEach(seg=>{
+    let best = 0, bx = seg.a;
+    xs.forEach((x,i)=>{ if (x >= seg.a-1e-9 && x <= seg.b+1e-9 && Math.abs(v[i]) > Math.abs(best)){ best = v[i]; bx = x; } });
+    const len = seg.b - seg.a;
+    const allow = len*1000/n;
+    const ok = Math.abs(best) <= allow + 1e-9;
+    const ratio = Math.abs(best) > 1e-9 ? `L/${Math.round(len*1000/Math.abs(best))}` : '—';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${seg.name}</td><td class="num">${len.toFixed(2)}</td><td class="num">${best.toFixed(2)}</td><td class="num">${bx.toFixed(2)}</td><td class="num">${allow.toFixed(2)}</td><td class="num ${ok?'tag-ok':'tag-ng'}">${ok?'✓ OK':'✗ NG'} <span style="font-weight:400; opacity:.75">(${ratio})</span></td>`;
+    deflTable.appendChild(tr);
+  });
+}
+
+/* ============== READ-OUT CURSOR (hover / drag on SFD · BMD · Deflection) ============== */
+let cursorX = null;      // m, or null when hidden
+let lastCalc = null;     // { R } from the last valid recompute
+let lastDefl = null;     // { res, sp } service-load FEM result for deflection
+const cursorSvgs = [sfdSvg, bmdSvg, deflSvg];
+
+// exact deflection (mm, up +) at x — same formulation as computeDeflection
+function deflAt(x){
+  if (!lastDefl) return null;
+  const { nodes, d, EIref, ew } = lastDefl.res.fem;
+  const scale = EIref / lastDefl.sp.EI;
+  let e = 0;
+  while (e < nodes.length-2 && x > nodes[e+1]) e++;
+  const x1 = nodes[e], Le = nodes[e+1]-x1;
+  if (!(Le > 0)) return 0;
+  const s = clamp(x - x1, 0, Le), xi = s/Le;
+  const [q1, q2] = ew[e] || [0, 0];
+  const N1 = 1-3*xi*xi+2*xi**3, N2 = Le*(xi-2*xi*xi+xi**3), N3 = 3*xi*xi-2*xi**3, N4 = Le*(-xi*xi+xi**3);
+  const vp = -s*s*(Le-s)*(Le-s)*((3*q1+2*q2)*Le - (q1-q2)*s)/(120*EIref*Le);
+  return (N1*d[2*e] + N2*d[2*e+1] + N3*d[2*e+2] + N4*d[2*e+3] + vp) * scale * 1000;
+}
+
+function drawCursorOn(svg, x, val, text){
+  const m = svg._map;
+  if (!m || val === null || !isFinite(val)) return;
+  const g = el('g', {class:'cursor', 'pointer-events':'none'}, svg);
+  const px = m.xScale(x);
+  el('line', {x1:px, y1:m.top-6, x2:px, y2:m.bottom, stroke:'var(--text-soft)', 'stroke-width':1, 'stroke-dasharray':'3 3'}, g);
+  el('circle', {cx:px, cy:m.yScale(val), r:4.5, fill:m.color, stroke:'var(--surface)', 'stroke-width':2}, g);
+  const right = px < m.W - 230;
+  const t = el('text', {x: right ? px+10 : px-10, y: m.top+6, 'text-anchor': right ? 'start' : 'end',
+    'font-size':'11', 'font-family':'JetBrains Mono, monospace', 'font-weight':'700', fill:'var(--text)'}, g);
+  t.textContent = text;
+  try {
+    const bb = t.getBBox();
+    const bg = el('rect', {x:bb.x-6, y:bb.y-3, width:bb.width+12, height:bb.height+6, rx:4,
+      fill:'var(--surface-2)', stroke:m.color, 'stroke-width':1, opacity:'0.95'});
+    g.insertBefore(bg, t);
+  } catch(e){ /* not rendered yet */ }
+}
+
+const readoutEl = $('#readout');
+function drawCursor(){
+  cursorSvgs.forEach(svg=> svg.querySelectorAll('.cursor').forEach(n=>n.remove()));
+  stage.querySelectorAll('.cursor').forEach(n=>n.remove());
+  if (cursorX === null || !lastCalc){ readoutEl.hidden = true; return; }
+  const x = clamp(cursorX, 0, state.L);
+  const R = lastCalc.R;
+  const u = state.combo.enabled ? 'u' : '';
+  const xs = `x=${x.toFixed(2)} m`;
+  drawCursorOn(sfdSvg, x, shearAt(x, R), `${xs}  V${u}=${fmt(shearAt(x, R))} t`);
+  drawCursorOn(bmdSvg, x, momentAt(x, R), `${xs}  M${u}=${fmt(momentAt(x, R))} t·m`);
+  const dv = deflAt(x);
+  if (dv !== null) drawCursorOn(deflSvg, x, dv, `${xs}  δ=${dv.toFixed(2)} mm`);
+  readoutEl.innerHTML = `<span>x = <b>${x.toFixed(2)}</b> m</span>`
+    + `<span class="ro-v">V${u} = <b>${fmt(shearAt(x, R))}</b> t</span>`
+    + `<span class="ro-m">M${u} = <b>${fmt(momentAt(x, R))}</b> t·m</span>`
+    + (dv !== null ? `<span class="ro-d">δ = <b>${dv.toFixed(2)}</b> mm</span>` : '')
+    + `<button id="readoutClose" aria-label="ปิดแถบค่า">✕</button>`;
+  readoutEl.hidden = false;
+  $('#readoutClose').onclick = ()=>{ cursorX = null; drawCursor(); };
+  // marker on the beam drawing
+  const px = xToSvg(x);
+  const g = el('g', {class:'cursor', 'pointer-events':'none'}, stage);
+  el('line', {x1:px, y1:40, x2:px, y2:150, stroke:'var(--text-soft)', 'stroke-width':1, 'stroke-dasharray':'3 3'}, g);
+}
+
+function cursorFromEvent(svg, e){
+  const r = svg.getBoundingClientRect();
+  const px = (e.clientX - r.left) * (900 / r.width);
+  return clamp((px - 70) / (900 - 140) * state.L, 0, state.L);
+}
+cursorSvgs.forEach(svg=>{
+  svg.addEventListener('pointermove', (e)=>{ cursorX = cursorFromEvent(svg, e); drawCursor(); });
+  svg.addEventListener('pointerdown', (e)=>{ cursorX = cursorFromEvent(svg, e); drawCursor(); });
+  // mouse: hide when leaving · touch/pen: keep the last reading on screen after lifting the finger
+  svg.addEventListener('pointerleave', (e)=>{ if (e.pointerType === 'mouse'){ cursorX = null; drawCursor(); } });
+});
 
 /* ============== EVENTS: form inputs ============== */
 beamLengthInput.addEventListener('change', ()=>{
@@ -1167,6 +1791,10 @@ $('#addPoint').addEventListener('click', ()=>{
 });
 $('#addUdl').addEventListener('click', ()=>{
   state.loads.push({id:nextId++, kind:'udl', start:0, end:state.L, mag:2, cat:'DL', active:true});
+  recompute();
+});
+$('#addTri').addEventListener('click', ()=>{
+  state.loads.push({id:nextId++, kind:'tri', start:0, end:state.L, w1:0, w2:2, cat:'DL', active:true});
   recompute();
 });
 $('#addMoment').addEventListener('click', ()=>{
@@ -1334,6 +1962,7 @@ function migrateState(s, format){
   if (!s.combo) s.combo = { enabled:false, factors:{DL:1.4, SDL:1.4, LL:1.7} };
   if (!s.combo.factors) s.combo.factors = {DL:1.4, SDL:1.4, LL:1.7};
   s.loads.forEach(l=>{ if (!l.cat) l.cat = 'DL'; });
+  ensureSection(s);
   return s;
 }
 
@@ -1348,6 +1977,8 @@ function applyState(s){
   factorDLEl.value = state.combo.factors.DL;
   factorSDLEl.value = state.combo.factors.SDL;
   factorLLEl.value = state.combo.factors.LL;
+  renderSectionPanel();
+  syncDeflLimitUI();
   recompute();
 }
 
@@ -1636,7 +2267,7 @@ if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
       applyState(defaultState());
     }
   } else {
-    recompute();
+    applyState(defaultState());
   }
   appReady = true;
   updateStatus();
