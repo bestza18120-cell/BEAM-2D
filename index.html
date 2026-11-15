@@ -98,6 +98,13 @@
     letter-spacing:-0.01em;
   }
   header h1 span{color:var(--steel);}
+  .ver-badge{
+    font-family:'JetBrains Mono',monospace; font-size:0.72rem; font-weight:600; letter-spacing:0;
+    padding:3px 9px; margin-left:6px; vertical-align:middle; border-radius:999px;
+    background:var(--surface-2); color:var(--text-soft); border:1px solid var(--panel-border);
+  }
+  .ver-badge:hover{color:var(--text); box-shadow:none; border-color:var(--steel);}
+  .ver-badge.has-update{color:var(--accent-text); background:var(--accent); border-color:var(--accent);}
   header .tag{
     font-family:'JetBrains Mono',monospace;
     font-size:0.72rem;
@@ -120,6 +127,7 @@
     box-shadow:0 2px 0 var(--btn-shadow);
   }
   #updateBar[hidden]{display:none;}
+  body.has-update-bar{padding-top:84px;}
   #readout{
     position:fixed; left:0; right:0; bottom:14px; margin:0 auto; width:fit-content; z-index:998;
     display:flex; gap:6px 14px; flex-wrap:wrap; justify-content:center; align-items:center;
@@ -341,14 +349,14 @@
 <body>
 <div id="readout" hidden aria-live="polite"></div>
 <div id="updateBar" hidden>
-  <span>🔔 มี Beam 2D เวอร์ชันใหม่</span>
+  <span id="updateText">🔔 มี Beam 2D เวอร์ชันใหม่</span>
   <button id="updateBtn">อัปเดตเลย</button>
 </div>
 
 <div class="wrap">
 
   <header>
-    <h1>BEAM<span>_2D</span></h1>
+    <h1>BEAM<span>_2D</span> <button id="verBadge" class="ver-badge" title="กดเพื่อเช็กเวอร์ชันใหม่">v…</button></h1>
     <div class="tag">คานช่วงเดียว / ต่อเนื่อง / ยื่น · SFD · BMD</div>
     <div class="header-actions">
       <div class="btns">
@@ -396,7 +404,7 @@
 
   <!-- SECTION & MATERIAL -->
   <div class="panel">
-    <div class="panel-head"><h2>หน้าตัดและวัสดุ (ใช้คำนวณการโก่งตัว)</h2></div>
+    <div class="panel-head"><h2>หน้าตัดและวัสดุ (ใช้คำนวณน้ำหนักคานและการโก่งตัว)</h2></div>
     <div class="controls">
       <div class="field">
         <label>ชนิดคาน</label>
@@ -409,6 +417,10 @@
         <label>รูปหน้าตัด</label>
         <select id="shapeSel" class="wide"></select>
       </div>
+      <label style="display:flex; align-items:center; gap:6px; font-family:'JetBrains Mono',monospace; font-size:0.8rem; cursor:pointer; align-self:flex-end; padding-bottom:6px;">
+        <input type="checkbox" id="swChk" style="width:16px;height:16px;cursor:pointer;">
+        รวมน้ำหนักคาน (DL)
+      </label>
       <div class="field" id="axisField">
         <label>แกนดัด</label>
         <select id="axisSel">
@@ -544,8 +556,9 @@ function defaultSection(){
   for (const k in STEEL_SHAPES) dims[k] = { ...STEEL_SHAPES[k].def };
   return {
     material: 'concrete',
-    concrete: { b:250, h:500, fc:240, factor:1.0 },
-    steel: { shape:'hbeam', dims, fy:2400, E:STEEL_E_DEFAULT, axis:'x' }
+    concrete: { b:250, h:500, fc:240, factor:1.0, gamma:2400 },
+    steel: { shape:'hbeam', dims, fy:2400, E:STEEL_E_DEFAULT, axis:'x', gamma:7850 },
+    selfWeight: true
   };
 }
 function ensureSection(s){
@@ -558,6 +571,7 @@ function ensureSection(s){
   for (const k in STEEL_SHAPES) sec.steel.dims[k] = { ...STEEL_SHAPES[k].def, ...(sec.steel.dims[k]||{}) };
   if (!STEEL_SHAPES[sec.steel.shape]) sec.steel.shape = 'hbeam';
   if (sec.material !== 'steel') sec.material = 'concrete';
+  if (typeof sec.selfWeight !== 'boolean') sec.selfWeight = true;
   if (!(s.deflLimit > 0)) s.deflLimit = 240;
   return s;
 }
@@ -645,7 +659,7 @@ function sectionProps(){
     const A = c.b*c.h;
     return {
       valid:true, material:'concrete', E, Ig, I, A, S: Ig/(c.h/2),
-      weight: A*1e-6*2400,                        // kg/m
+      weight: A*1e-6*c.gamma,                     // kg/m
       EI: E*10 * I*1e-12,                         // t·m²
       geom: {W:c.b, H:c.h, rects:[{x:0,y:0,w:c.b,h:c.h,s:1}], circles:[]}, yc:c.h/2, xc:c.b/2, axis:'x'
     };
@@ -659,7 +673,7 @@ function sectionProps(){
   const S = st.axis==='y' ? p.Sy : p.Sx;
   return {
     valid:true, material:'steel', E:st.E, I, S, A:p.A, Ix:p.Ix, Iy:p.Iy, Sx:p.Sx, Sy:p.Sy, fy:st.fy,
-    weight: p.A*1e-6*7850, EI: st.E*10 * I*1e-12,
+    weight: p.A*1e-6*st.gamma, EI: st.E*10 * I*1e-12,
     geom:g, xc:p.xc, yc:p.yc, axis:st.axis
   };
 }
@@ -768,6 +782,20 @@ function effMag(ld){
   if (ld.active === false) return 0;
   return ld.mag * loadFactor(ld.cat);
 }
+/* loads used by the solver = user loads + automatic self-weight (DL, full length) */
+let calcLoadsCache = [];
+function selfWeightLoad(sp){
+  if (!state.section || !state.section.selfWeight || !sp || !sp.valid) return null;
+  const w = sp.weight / 1000;                       // kg/m → t/m
+  if (!(w > 0)) return null;
+  return { id:'sw', kind:'udl', start:0, end:state.L, mag:w, cat:'DL', active:true, auto:true };
+}
+function buildCalcLoads(sp){
+  const sw = selfWeightLoad(sp);
+  calcLoadsCache = sw ? [...state.loads, sw] : state.loads.slice();
+  return calcLoadsCache;
+}
+function calcLoads(){ return calcLoadsCache; }
 function effVal(ld, v){
   if (ld.active === false) return 0;
   return v * loadFactor(ld.cat);
@@ -882,7 +910,7 @@ function solveReactions(){
   const eps = Math.max(1e-6, L*1e-6);
   let xset = new Set([0, L]);
   supports.forEach(s=>xset.add(round4(s.pos)));
-  state.loads.forEach(ld=>{
+  calcLoads().forEach(ld=>{
     if (ld.kind==='point' || ld.kind==='moment') xset.add(round4(clamp(ld.pos,0,L)));
     if (isDist(ld)){ xset.add(round4(clamp(ld.start,0,L))); xset.add(round4(clamp(ld.end,0,L))); }
   });
@@ -901,7 +929,7 @@ function solveReactions(){
   let K = Array.from({length:ndof},()=>new Array(ndof).fill(0));
   let F = new Array(ndof).fill(0);
 
-  state.loads.forEach(ld=>{
+  calcLoads().forEach(ld=>{
     if (ld.kind === 'point'){
       const i = nodeIdx(clamp(ld.pos,0,L));
       F[2*i] += -effMag(ld);
@@ -930,7 +958,7 @@ function solveReactions(){
 
     // nodes sit on every load boundary, so each distributed load covers an element fully or not at all
     let q1 = 0, q2 = 0;
-    state.loads.forEach(ld=>{
+    calcLoads().forEach(ld=>{
       if (isDist(ld)){
         const a = Math.max(ld.start, x1), b = Math.min(ld.end, x2);
         if (b - a > eps && a<=x1+eps && b>=x2-eps){ q1 += distAt(ld, x1); q2 += distAt(ld, x2); }
@@ -993,7 +1021,7 @@ function shearAt(x, reactionResult){
       if (r) V += r.F;
     }
   }
-  for (const ld of state.loads){
+  for (const ld of calcLoads()){
     if (ld.kind === 'point'){
       if (ld.pos <= x + 1e-9) V -= effMag(ld);
     } else if (isDist(ld)){
@@ -1015,7 +1043,7 @@ function momentAt(x, reactionResult){
       }
     }
   }
-  for (const ld of state.loads){
+  for (const ld of calcLoads()){
     if (ld.kind === 'point'){
       if (ld.pos <= x + 1e-9) M -= effMag(ld) * (x - ld.pos);
     } else if (isDist(ld)){
@@ -1034,7 +1062,7 @@ function computeDiagrams(reactionResult, nSteps=240){
 
   const critical = new Set([0, L]);
   supports.forEach(s=>critical.add(round4(s.pos)));
-  state.loads.forEach(ld=>{
+  calcLoads().forEach(ld=>{
     if (ld.kind==='point' || ld.kind==='moment') critical.add(round4(ld.pos));
     if (isDist(ld)){ critical.add(round4(ld.start)); critical.add(round4(ld.end)); }
   });
@@ -1078,6 +1106,7 @@ function renderStage(){
   beamOverlay.setAttribute('stroke', 'var(--beam)');
 
   state.supports.forEach(s=> drawSupport(s.key, s, beamY));
+  drawSelfWeight(beamY);
   state.loads.forEach(ld=>drawLoad(ld, beamY));
 
   el('line', {x1:x0,y1:beamY+50,x2:x1,y2:beamY+50,stroke:'var(--axis-text)','stroke-width':1}, stage);
@@ -1085,6 +1114,20 @@ function renderStage(){
   el('line', {x1:x1,y1:beamY+45,x2:x1,y2:beamY+55,stroke:'var(--axis-text)','stroke-width':1}, stage);
   const dimLabel = el('text', {x:(x0+x1)/2, y:beamY+70, 'text-anchor':'middle','font-size':'12','font-family':'JetBrains Mono, monospace', fill:'var(--dim-text)','font-weight':'600'}, stage);
   dimLabel.textContent = `L = ${L.toFixed(2)} m`;
+}
+
+function drawSelfWeight(beamY){
+  const sw = calcLoads().find(l=>l.auto);
+  if (!sw) return;
+  const xA = xToSvg(0), xB = xToSvg(state.L), top = beamY - 12;
+  const g = el('g', {'pointer-events':'none'}, stage);
+  el('rect', {x:xA, y:top, width:xB-xA, height:9, fill:'var(--text-soft)', 'fill-opacity':'0.18'}, g);
+  for (let x = xA+4; x < xB; x += 10){
+    el('line', {x1:x, y1:top+9, x2:x+6, y2:top, stroke:'var(--text-soft)', 'stroke-width':1, opacity:'0.6'}, g);
+  }
+  const k = loadFactor('DL');
+  const t = state.combo.enabled ? `น้ำหนักคาน ${sw.mag.toFixed(3)}×${k} = ${(sw.mag*k).toFixed(3)} t/m (DL)` : `น้ำหนักคาน ${sw.mag.toFixed(3)} t/m (DL)`;
+  el('text', {x:xA, y:beamY+88, 'font-size':'10.5', 'font-family':'JetBrains Mono, monospace', fill:'var(--text-soft)'}, g).textContent = '▨ ' + t;
 }
 
 function drawSupport(key, sup, beamY){
@@ -1268,8 +1311,9 @@ function recompute(){
   state.supports.forEach(s=>{ s.pos = clamp(s.pos, 0, state.L); });
   relabelSupports();
 
-  const reactionResult = solveReactions();
   const sp = sectionProps();
+  buildCalcLoads(sp);
+  const reactionResult = solveReactions();
   renderReactionTable(reactionResult);
   renderSupportValuesTable(reactionResult);
 
@@ -1493,6 +1537,7 @@ function numField(label, value, key, unit){
 function renderSectionPanel(){
   const sec = state.section;
   matSel.value = sec.material;
+  $('#swChk').checked = !!sec.selfWeight;
   const isSteel = sec.material === 'steel';
   $('#shapeField').style.display = isSteel ? '' : 'none';
   $('#axisField').style.display = isSteel ? '' : 'none';
@@ -1503,6 +1548,7 @@ function renderSectionPanel(){
     html += numField('ลึก h', c.h, 'c.h', 'mm');
     html += numField("fc'", c.fc, 'c.fc', 'ksc');
     html += numField('ตัวคูณ I', c.factor, 'c.factor', '× Ig');
+    html += numField('<span class="nt">γ</span> คอนกรีต', c.gamma, 'c.gamma', 'kg/m³');
     secHint.textContent = "Ec = 15,100√fc' (ksc) · Ieff = ตัวคูณ × Ig (Ig = bh³/12 หน้าตัดเต็มไม่คิดเหล็กเสริม) · ใช้ 1.0 = ไม่คิดการแตกร้าว, ประมาณ 0.35–0.5 สำหรับคานที่แตกร้าว";
   } else {
     const st = sec.steel;
@@ -1512,6 +1558,7 @@ function renderSectionPanel(){
     STEEL_SHAPES[st.shape].dims.forEach(([k,label])=>{ html += numField(label, d[k], 'd.'+k, 'mm'); });
     html += numField('fy', st.fy, 's.fy', 'ksc');
     html += numField('E', st.E, 's.E', 'ksc');
+    html += numField('<span class="nt">γ</span> เหล็ก', st.gamma, 's.gamma', 'kg/m³');
     secHint.textContent = 'คิดหน้าตัดจากแผ่นเหล็กตรง ไม่รวมรัศมีโค้งที่มุม (fillet) ค่า I จึงต่ำกว่าตารางเหล็กเล็กน้อย (ปลอดภัยสำหรับการโก่งตัว) · เหล็กฉากใช้แกน x-x / y-y ที่ขนานกับขา (ไม่ใช่แกนหลักเอียง)';
   }
   dimFieldsEl.innerHTML = html;
@@ -1567,14 +1614,14 @@ function renderSectionProps(sp, maxM){
     row('Ig = bh³/12', `${fmtSig(sp.Ig/1e4)} cm⁴`);
     row(`Ieff = ${state.section.concrete.factor} × Ig`, `${fmtSig(sp.I/1e4)} cm⁴`);
     row('A', `${fmtSig(sp.A/100)} cm²`);
-    row('น้ำหนักคาน', `${fmtSig(sp.weight)} kg/m`);
+    row('น้ำหนักคาน (A×γ)', `${fmtSig(sp.weight)} kg/m = ${(sp.weight/1000).toFixed(3)} t/m${state.section.selfWeight ? '' : ' (ไม่รวม)'}`);
   } else {
     const ax = sp.axis === 'y' ? 'y' : 'x';
     row('A', `${fmtSig(sp.A/100)} cm²`);
     row('Ix', `${fmtSig(sp.Ix/1e4)} cm⁴`, ax==='x'?'tag-ok':'');
     row('Iy', `${fmtSig(sp.Iy/1e4)} cm⁴`, ax==='y'?'tag-ok':'');
     row(`S${ax} (ค่าน้อยสุด)`, `${fmtSig(sp.S/1e3)} cm³`);
-    row('น้ำหนักคาน', `${fmtSig(sp.weight)} kg/m`);
+    row('น้ำหนักคาน (A×γ)', `${fmtSig(sp.weight)} kg/m = ${(sp.weight/1000).toFixed(3)} t/m${state.section.selfWeight ? '' : ' (ไม่รวม)'}`);
     if (isFinite(maxM) && sp.S > 0){
       const fb = maxM*1e8/sp.S; // ksc  (t·m → kg·cm = ×1e5 ; mm³ → cm³ = ÷1e3)
       const lbl = state.combo.enabled ? 'fb = Mu,max / S' : 'fb = Mmax / S';
@@ -1585,6 +1632,7 @@ function renderSectionProps(sp, maxM){
   row('EI', `${fmtSig(sp.EI)} t·m²`);
 }
 
+$('#swChk').addEventListener('change', (e)=>{ state.section.selfWeight = e.target.checked; recompute(); });
 matSel.addEventListener('change', ()=>{ state.section.material = matSel.value; renderSectionPanel(); recompute(); });
 shapeSel.addEventListener('change', ()=>{ state.section.steel.shape = shapeSel.value; renderSectionPanel(); recompute(); });
 axisSel.addEventListener('change', ()=>{ state.section.steel.axis = axisSel.value; recompute(); });
@@ -2211,13 +2259,65 @@ function askSwVersion(worker){
   });
 }
 
+/* ---- version badge: shows the running version; click = check for a new version now ---- */
+const verBadge = $('#verBadge');
+let swReg = null, showUpdateFn = null, currentVersion = null;
+function setCurrentVersion(v){
+  currentVersion = v || null;
+  if (v){
+    verBadge.textContent = `v${v}`;
+    verBadge.title = 'กดเพื่อเช็กเวอร์ชันใหม่';
+    $('#appVersion').textContent = `Beam 2D v${v}`;
+  }
+}
+verBadge.addEventListener('click', async ()=>{
+  if (!swReg){
+    showToast('เปิดจากไฟล์ในเครื่อง — ไม่มีระบบอัปเดตอัตโนมัติ');
+    return;
+  }
+  if (swReg.waiting){ showUpdateFn && showUpdateFn(swReg.waiting); return; }
+  const before = verBadge.textContent;
+  verBadge.textContent = 'กำลังเช็ก…';
+  try {
+    await swReg.update();
+    const w = swReg.installing;
+    if (w) await new Promise(res=>{
+      w.addEventListener('statechange', ()=>{ if (w.state !== 'installing') res(); });
+      setTimeout(res, 10000);
+    });
+  } catch(e){
+    verBadge.textContent = before;
+    showToast('⚠ เช็กไม่ได้ — ไม่ได้ต่ออินเทอร์เน็ต?');
+    return;
+  }
+  if (swReg.waiting){
+    showUpdateFn && showUpdateFn(swReg.waiting);
+  } else {
+    verBadge.textContent = before;
+    showToast(`✓ เป็นเวอร์ชันล่าสุดแล้ว (v${currentVersion || '?'})`);
+  }
+});
+if (!('serviceWorker' in navigator) || !/^https?:$/.test(location.protocol)){
+  verBadge.textContent = 'local';
+  verBadge.title = 'เปิดจากไฟล์ในเครื่อง — ไม่มีระบบอัปเดตอัตโนมัติ';
+}
+
 if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
   window.addEventListener('load', async ()=>{
     try {
       const reg = await navigator.serviceWorker.register('./sw.js');
+      swReg = reg;
       const updateBar = $('#updateBar');
-      const showUpdate = (worker)=>{
+      const showUpdate = async (worker)=>{
         updateBar.hidden = false;
+        document.body.classList.add('has-update-bar');
+        verBadge.classList.add('has-update');
+        const nv = await askSwVersion(worker);
+        if (nv){
+          $('#updateText').textContent = `🔔 มี Beam 2D เวอร์ชันใหม่: v${currentVersion || '?'} → v${nv}`;
+          verBadge.textContent = `v${currentVersion || '?'} ↑`;
+          verBadge.title = 'มีเวอร์ชันใหม่ — กด "อัปเดตเลย" ที่แถบด้านบน';
+        }
         $('#updateBtn').onclick = ()=>{
           writeAutosave();               // เก็บงานไว้ก่อนรีโหลด
           updateRequested = true;
@@ -2225,7 +2325,7 @@ if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
         };
       };
       let updateRequested = false;
-      if (reg.waiting && navigator.serviceWorker.controller) showUpdate(reg.waiting);
+      showUpdateFn = showUpdate;
       reg.addEventListener('updatefound', ()=>{
         const nw = reg.installing;
         if (!nw) return;
@@ -2248,7 +2348,8 @@ if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
 
       const ready = await navigator.serviceWorker.ready;
       const v = await askSwVersion(navigator.serviceWorker.controller || ready.active);
-      if (v) $('#appVersion').textContent = `Beam 2D v${v}`;
+      setCurrentVersion(v);
+      if (reg.waiting && navigator.serviceWorker.controller) showUpdate(reg.waiting);
     } catch(e){
       console.warn('Service worker registration failed', e);
     }
