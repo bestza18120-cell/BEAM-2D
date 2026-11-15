@@ -1,0 +1,1586 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Beam 2D — คำนวณคาน</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1A2332">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Beam 2D">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap');
+
+  :root{
+    --paper:#FDFDFB;
+    --paper-line:#E4E0D6;
+    --ink:#1A2332;
+    --ink-soft:#4A5568;
+    --steel:#3B5B7A;
+    --steel-light:#7A96AD;
+    --load:#C4432A;
+    --load-soft:#E8AA98;
+    --moment:#4A7A5C;
+    --moment-soft:#A9C7B3;
+    --shear:#8B5FBF;
+    --shear-soft:#C9AEE0;
+    --paper-shadow: rgba(26,35,50,0.08);
+  }
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+
+  body{
+    font-family:'Inter',sans-serif;
+    background:var(--paper);
+    background-image:
+      linear-gradient(var(--paper-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--paper-line) 1px, transparent 1px);
+    background-size: 28px 28px;
+    color:var(--ink);
+    min-height:100vh;
+    padding: 24px 16px 60px;
+  }
+
+  .wrap{max-width:920px; margin:0 auto;}
+
+  header{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-bottom:28px;
+    padding-bottom:16px;
+    border-bottom:2px solid var(--ink);
+  }
+  header h1{
+    font-size:1.5rem;
+    font-weight:800;
+    letter-spacing:-0.01em;
+  }
+  header h1 span{color:var(--steel);}
+  header .tag{
+    font-family:'JetBrains Mono',monospace;
+    font-size:0.72rem;
+    color:var(--ink-soft);
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+  }
+  .header-actions{display:flex; flex-direction:column; align-items:flex-end; gap:4px;}
+  .header-actions .btns{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;}
+  #saveStatus{font-family:'JetBrains Mono',monospace; font-size:0.68rem; color:var(--ink-soft); text-align:right;}
+  #saveStatus .dirty{color:var(--load); font-weight:700;}
+
+  /* update banner */
+  #updateBar{
+    position:fixed; top:0; left:0; right:0; z-index:1000;
+    display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap;
+    padding:10px 16px;
+    background:var(--steel); color:#fff;
+    font-family:'JetBrains Mono',monospace; font-size:0.8rem;
+    box-shadow:0 2px 0 var(--ink);
+  }
+  #updateBar[hidden]{display:none;}
+  #updateBar button{background:#fff; color:var(--ink); border-color:#fff; padding:5px 12px;}
+
+  .panel{
+    background:#fff;
+    border:1.5px solid var(--ink);
+    border-radius:4px;
+    box-shadow: 4px 4px 0 var(--paper-shadow);
+    margin-bottom:20px;
+    overflow:hidden;
+  }
+  .panel-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:10px 16px;
+    background:var(--ink);
+    color:var(--paper);
+  }
+  .panel-head h2{
+    font-size:0.78rem;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    font-weight:600;
+  }
+  .panel-body{padding:18px 16px;}
+
+  /* Controls row */
+  .controls{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    align-items:center;
+    padding:14px 16px;
+    border-bottom:1px solid var(--paper-line);
+  }
+  .field{
+    display:flex;
+    flex-direction:column;
+    gap:3px;
+  }
+  .field label{
+    font-size:0.68rem;
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+    color:var(--ink-soft);
+    font-weight:600;
+  }
+  .field input, .field select{
+    font-family:'JetBrains Mono',monospace;
+    font-size:0.85rem;
+    padding:6px 8px;
+    border:1.5px solid var(--ink);
+    border-radius:3px;
+    width:88px;
+    background:var(--paper);
+    color:var(--ink);
+  }
+  .field select{width:auto; cursor:pointer;}
+  .field input:focus, .field select:focus{outline:2px solid var(--steel); outline-offset:1px;}
+
+  button{
+    font-family:'Inter',sans-serif;
+    font-weight:600;
+    font-size:0.82rem;
+    padding:8px 14px;
+    border:1.5px solid var(--ink);
+    border-radius:3px;
+    background:var(--paper);
+    color:var(--ink);
+    cursor:pointer;
+    transition:transform 0.08s ease, box-shadow 0.08s ease;
+  }
+  button:hover{box-shadow:2px 2px 0 var(--ink);}
+  button:active{transform:translate(2px,2px); box-shadow:none;}
+  button.primary{background:var(--steel); color:#fff; border-color:var(--steel);}
+  button.danger{background:var(--load); color:#fff; border-color:var(--load);}
+  button:focus-visible{outline:2px solid var(--steel); outline-offset:2px;}
+
+  .load-row{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex-wrap:wrap;
+    padding:8px 16px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:0.78rem;
+    border-bottom:1px solid var(--paper-line);
+  }
+  .load-row:last-child{border-bottom:none;}
+  #supportList .load-row{background:#F7F6F1;}
+  #supportList .load-row select{
+    font-family:'JetBrains Mono',monospace;
+    font-size:0.78rem;
+    padding:4px 6px;
+    border:1.5px solid var(--ink);
+    border-radius:3px;
+    background:var(--paper);
+  }
+  .load-row .swatch{
+    width:10px; height:10px; border-radius:2px; flex-shrink:0;
+  }
+  .load-row .rm{
+    margin-left:auto;
+    font-size:0.7rem;
+    padding:4px 8px;
+  }
+
+  /* Beam diagram */
+  #beamStage{
+    width:100%;
+    height:220px;
+    touch-action:none;
+    cursor:default;
+  }
+  .stage-wrap{
+    padding:10px 6px 4px;
+    overflow-x:auto;
+  }
+
+  /* diagrams */
+  .diagram-title{
+    font-family:'JetBrains Mono',monospace;
+    font-size:0.72rem;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    color:var(--ink-soft);
+    margin-bottom:4px;
+    padding-left:6px;
+  }
+  .diagram-wrap{margin-bottom:18px;}
+  .diagram-wrap:last-child{margin-bottom:0;}
+
+  /* results table */
+  table{width:100%; border-collapse:collapse; font-family:'JetBrains Mono',monospace; font-size:0.82rem;}
+  th, td{text-align:left; padding:7px 10px; border-bottom:1px solid var(--paper-line);}
+  th{color:var(--ink-soft); font-weight:600; text-transform:uppercase; font-size:0.68rem; letter-spacing:0.05em;}
+  td.num{text-align:right; font-weight:600;}
+  tr:last-child td{border-bottom:none;}
+
+  .hint{
+    font-family:'JetBrains Mono',monospace;
+    font-size:0.72rem;
+    color:var(--ink-soft);
+    padding:8px 16px;
+    background:var(--paper);
+    border-bottom:1px solid var(--paper-line);
+  }
+
+  .max-badge{
+    display:inline-block;
+    font-family:'JetBrains Mono',monospace;
+    font-size:0.72rem;
+    padding:2px 8px;
+    border-radius:10px;
+    margin-left:6px;
+  }
+  .max-badge.shear{background:var(--shear-soft); color:#3d2a5c;}
+  .max-badge.moment{background:var(--moment-soft); color:#1f3d28;}
+
+  footer{
+    text-align:center;
+    font-family:'JetBrains Mono',monospace;
+    font-size:0.68rem;
+    color:var(--ink-soft);
+    margin-top:24px;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    * {transition:none !important;}
+  }
+
+  @media (max-width:600px){
+    .field input, .field select{width:76px;}
+    header h1{font-size:1.2rem;}
+    .header-actions{align-items:stretch; width:100%;}
+    .header-actions .btns{justify-content:flex-start;}
+    #saveStatus{text-align:left;}
+  }
+</style>
+</head>
+<body>
+<div id="updateBar" hidden>
+  <span>🔔 มี Beam 2D เวอร์ชันใหม่</span>
+  <button id="updateBtn">อัปเดตเลย</button>
+</div>
+
+<div class="wrap">
+
+  <header>
+    <h1>BEAM<span>_2D</span></h1>
+    <div class="tag">คานช่วงเดียว / ต่อเนื่อง / ยื่น · SFD · BMD</div>
+    <div class="header-actions">
+      <div class="btns">
+        <button id="newBtn" title="เริ่มโปรเจกต์ใหม่">🆕 ใหม่</button>
+        <button id="openBtn" title="เปิดไฟล์ .beam (หรือไฟล์ .html ที่เซฟจากเวอร์ชันเก่า)">📂 เปิด</button>
+        <button class="primary" id="saveAsBtn">💾 Save As</button>
+        <button id="saveOverwriteBtn">📝 Save</button>
+        <button id="installBtn" class="primary" style="display:none;">⬇ ติดตั้งแอป</button>
+      </div>
+      <div id="saveStatus">ยังไม่ได้บันทึก — กด Save As เพื่อบันทึกเป็นไฟล์ .beam</div>
+    </div>
+  </header>
+  <input type="file" id="fileInput" accept=".beam,.json,.html,application/json,text/html" hidden>
+
+  <div id="toast" style="position:fixed; bottom:20px; right:20px; background:var(--ink); color:var(--paper); padding:10px 16px; border-radius:4px; font-family:'JetBrains Mono',monospace; font-size:0.78rem; box-shadow:4px 4px 0 var(--paper-shadow); opacity:0; pointer-events:none; transition:opacity 0.25s ease; z-index:999;"></div>
+
+  <!-- BEAM SETUP -->
+  <div class="panel">
+    <div class="panel-head"><h2>ตั้งค่าคาน</h2></div>
+    <div class="controls">
+      <div class="field">
+        <label>ความยาวคาน L (m)</label>
+        <input type="text" inputmode="decimal" id="beamLength" value="6" min="0.5" step="0.1">
+      </div>
+    </div>
+    <div class="controls" style="border-bottom:none;">
+      <button class="primary" id="addSupport">+ Support</button>
+    </div>
+    <div id="supportList"></div>
+    <div class="hint">ลากจุดบนคานเพื่อย้ายตำแหน่ง support/แรงได้ทันที — รองรับ support ได้หลายจุด (คานต่อเนื่อง)</div>
+
+    <div class="stage-wrap">
+      <svg id="beamStage" viewBox="0 0 900 220" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+
+    <div class="controls" style="border-bottom:none; border-top:1px solid var(--paper-line);">
+      <button class="primary" id="addPoint">+ Point Load</button>
+      <button class="primary" id="addUdl">+ UDL</button>
+      <button class="primary" id="addMoment">+ Moment</button>
+    </div>
+    <div id="loadList"></div>
+  </div>
+
+  <!-- LOAD COMBINATION -->
+  <div class="panel">
+    <div class="panel-head"><h2>Load Combination (Factor)</h2></div>
+    <div class="controls">
+      <label style="display:flex; align-items:center; gap:6px; font-family:'JetBrains Mono',monospace; font-size:0.82rem; cursor:pointer;">
+        <input type="checkbox" id="comboEnabled" style="width:16px;height:16px;cursor:pointer;">
+        ใช้ Factored Load (Ultimate)
+      </label>
+    </div>
+    <div class="controls" style="border-bottom:none;">
+      <div class="field">
+        <label>Factor DL</label>
+        <input type="text" inputmode="decimal" id="factorDL" step="0.05" value="1.4">
+      </div>
+      <div class="field">
+        <label>Factor SDL</label>
+        <input type="text" inputmode="decimal" id="factorSDL" step="0.05" value="1.4">
+      </div>
+      <div class="field">
+        <label>Factor LL</label>
+        <input type="text" inputmode="decimal" id="factorLL" step="0.05" value="1.7">
+      </div>
+    </div>
+    <div class="hint">กำหนดประเภทของแต่ละแรง (DL/SDL/LL) ได้ที่ dropdown ในรายการแรงด้านบน · เมื่อเปิดใช้งาน ทุกผลลัพธ์ (Reaction, SFD, BMD) จะเป็นค่า Factored (Ultimate)</div>
+  </div>
+
+  <!-- REACTIONS -->
+  <div class="panel">
+    <div class="panel-head"><h2>Reactions</h2></div>
+    <div class="panel-body" style="padding-top:8px; padding-bottom:8px;">
+      <table id="reactionTable"><tbody></tbody></table>
+    </div>
+  </div>
+
+  <!-- SHEAR & MOMENT AT SUPPORTS -->
+  <div class="panel">
+    <div class="panel-head"><h2>Shear &amp; Moment ที่จุด Support</h2></div>
+    <div class="panel-body" style="padding-top:8px; padding-bottom:8px;">
+      <table id="supportValuesTable"><tbody></tbody></table>
+      <div class="hint" style="padding:8px 0 0; border:none;">V ซ้าย/ขวา คือค่า shear ที่จุดนั้นก่อนและหลังแรงกระทำ (มีค่ากระโดดที่ support) · R = จาก jump คือ V ขวา − V ซ้าย (ควรตรงกับค่าในตาราง Reactions ด้านบน) · M คือ bending moment ที่จุดนั้น</div>
+    </div>
+  </div>
+
+  <!-- SFD -->
+  <div class="panel">
+    <div class="panel-head"><h2>Shear Force Diagram (SFD) <span id="maxShear" class="max-badge shear"></span></h2></div>
+    <div class="panel-body">
+      <div class="diagram-wrap">
+        <svg id="sfdSvg" viewBox="0 0 900 200" preserveAspectRatio="xMidYMid meet" style="width:100%; height:auto;"></svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- BMD -->
+  <div class="panel">
+    <div class="panel-head"><h2>Bending Moment Diagram (BMD) <span id="maxMoment" class="max-badge moment"></span></h2></div>
+    <div class="panel-body">
+      <div class="diagram-wrap">
+        <svg id="bmdSvg" viewBox="0 0 900 200" preserveAspectRatio="xMidYMid meet" style="width:100%; height:auto;"></svg>
+      </div>
+    </div>
+  </div>
+
+  <footer>หน่วย: กำลัง (t), โมเมนต์ (t·m), ระยะ (m) · แรงลง = ค่าบวก · <span id="appVersion">Beam 2D</span></footer>
+</div>
+
+<script>
+/* ============== STATE ============== */
+function defaultState(){
+  return {
+    L: 6,
+    supports: [
+      { id:1, key:'A', type:'pin', pos:0 },
+      { id:2, key:'B', type:'roller', pos:6 }
+    ],
+    loads: [
+      { id:1, kind:'point', pos:3, mag:10, cat:'DL' },
+      { id:2, kind:'udl', start:0, end:6, mag:2, cat:'DL' }
+    ],
+    combo: {
+      enabled: false,
+      factors: { DL:1.4, SDL:1.4, LL:1.7 }
+    }
+  };
+}
+let state = defaultState();
+let nextId = 3;
+let nextSupportId = 3;
+let dragTarget = null; // {kind:'load'|'support', id or key}
+
+function supportKeyFor(idx){
+  // A, B, C ... Z then A2, B2 ...
+  const letter = String.fromCharCode(65 + (idx % 26));
+  const suffix = Math.floor(idx/26) > 0 ? (Math.floor(idx/26)+1) : '';
+  return letter + suffix;
+}
+function relabelSupports(){
+  state.supports.forEach((s,i)=>{ s.key = supportKeyFor(i); });
+}
+
+const $ = s => document.querySelector(s);
+const beamLengthInput = $('#beamLength');
+const supportListEl = $('#supportList');
+const loadListEl = $('#loadList');
+const stage = $('#beamStage');
+const sfdSvg = $('#sfdSvg');
+const bmdSvg = $('#bmdSvg');
+const reactionTable = $('#reactionTable tbody');
+const supportValuesTable = $('#supportValuesTable tbody');
+
+/* ============== GEOMETRY HELPERS ============== */
+const STAGE_W = 900, STAGE_H = 220;
+const MARGIN_X = 70;
+function xToSvg(x){
+  const L = state.L || 1;
+  return MARGIN_X + (x / L) * (STAGE_W - 2*MARGIN_X);
+}
+function svgToX(px){
+  const L = state.L || 1;
+  let x = ((px - MARGIN_X) / (STAGE_W - 2*MARGIN_X)) * L;
+  return Math.max(0, Math.min(L, x));
+}
+function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
+function fmt(n){
+  if (Math.abs(n) < 0.005) return '0.00';
+  return n.toFixed(2);
+}
+
+/* ============== MATH-AWARE INPUT PARSING (+ - × ÷) ============== */
+function evalMathExpr(str){
+  if (typeof str !== 'string') return NaN;
+  let s = str.trim();
+  if (s === '') return NaN;
+  s = s.replace(/×/g, '*').replace(/÷/g, '/').replace(/,/g, '.');
+  // treat x/X as multiply only when it sits between two numeric/paren tokens (e.g. "2x3")
+  s = s.replace(/([0-9)])\s*[xX]\s*(?=[0-9(])/g, '$1*');
+  // only allow safe characters: digits, + - * / ( ) . and whitespace
+  if (!/^[0-9+\-*/().\s]+$/.test(s)) return NaN;
+  try {
+    const result = Function('"use strict"; return (' + s + ')')();
+    if (typeof result !== 'number' || !isFinite(result)) return NaN;
+    return result;
+  } catch(e){
+    return NaN;
+  }
+}
+function evalMathInput(str, fallback){
+  const v = evalMathExpr(str);
+  return isNaN(v) ? fallback : v;
+}
+
+/* ============== LOAD COMBINATION (FACTORED LOADS) ============== */
+function loadFactor(cat){
+  if (!state.combo.enabled) return 1;
+  return state.combo.factors[cat || 'DL'] ?? 1;
+}
+function effMag(ld){
+  if (ld.active === false) return 0;
+  return ld.mag * loadFactor(ld.cat);
+}
+function loadLabelText(ld, unit){
+  const base = `${Math.abs(ld.mag).toFixed(1)}${unit}`;
+  const cat = ld.cat || 'DL';
+  const offSuffix = ld.active === false ? ' [ปิด]' : '';
+  if (!state.combo.enabled) return `${base} (${cat})${offSuffix}`;
+  const f = loadFactor(cat);
+  const factored = Math.abs(effMag(ld)).toFixed(1);
+  return `${base}×${f} (${cat}) = ${factored}${unit}${offSuffix}`;
+}
+
+/* ============== SVG BUILD HELPERS ============== */
+function el(tag, attrs, parent){
+  const e = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+
+/* ============== ANALYSIS ENGINE ============== */
+function getActiveSupports(){
+  return state.supports.filter(s=>s.type!=='none').sort((a,b)=>a.pos-b.pos);
+}
+
+/* General beam solver via the direct stiffness method (Euler-Bernoulli
+   beam elements). Handles any number/combination of pin, roller, and
+   fixed supports — statically determinate or indeterminate — since a
+   prismatic beam's force distribution is independent of the absolute
+   EI value as long as EI is constant along its length. Validated against
+   textbook simply-supported, cantilever, and multi-span continuous-beam
+   benchmarks. */
+function gaussSolve(A, b){
+  const n = b.length;
+  const M = A.map((row,i)=>[...row, b[i]]);
+  for (let col=0; col<n; col++){
+    let piv = col;
+    for (let r=col+1;r<n;r++) if (Math.abs(M[r][col])>Math.abs(M[piv][col])) piv=r;
+    [M[col],M[piv]]=[M[piv],M[col]];
+    if (Math.abs(M[col][col]) < 1e-9) continue;
+    for (let r=0;r<n;r++){
+      if (r===col) continue;
+      const f = M[r][col]/M[col][col];
+      for (let c=col;c<=n;c++) M[r][c]-=f*M[col][c];
+    }
+  }
+  return M.map((row,i)=> Math.abs(row[i])<1e-9?0:row[n]/row[i]);
+}
+
+function solveReactions(){
+  const supports = getActiveSupports();
+  const result = { reactions: {}, valid:true, message:'' };
+  const L = state.L;
+
+  if (supports.length === 0){
+    result.valid = false;
+    result.message = 'ต้องมี support อย่างน้อย 1 จุด';
+    return result;
+  }
+  // duplicate position check
+  for (let i=1;i<supports.length;i++){
+    if (Math.abs(supports[i].pos - supports[i-1].pos) < 1e-6){
+      result.valid = false;
+      result.message = 'ตำแหน่ง support ซ้ำกัน';
+      return result;
+    }
+  }
+  const dofsPerSupport = supports.reduce((n,s)=> n + (s.type==='fixed'?2:1), 0);
+  if (supports.length === 1 && supports[0].type !== 'fixed'){
+    result.valid = false;
+    result.message = 'มี support จุดเดียวต้องเป็น Fixed (คานยื่น) มิฉะนั้นคานไม่มั่นคง';
+    return result;
+  }
+  if (dofsPerSupport < 2){
+    result.valid = false;
+    result.message = 'คานไม่มั่นคง (unstable) — เพิ่ม support';
+    return result;
+  }
+
+  // build node list: 0, L, every support, every load boundary
+  const eps = Math.max(1e-6, L*1e-6);
+  let xset = new Set([0, L]);
+  supports.forEach(s=>xset.add(round4(s.pos)));
+  state.loads.forEach(ld=>{
+    if (ld.kind==='point' || ld.kind==='moment') xset.add(round4(clamp(ld.pos,0,L)));
+    if (ld.kind==='udl'){ xset.add(round4(clamp(ld.start,0,L))); xset.add(round4(clamp(ld.end,0,L))); }
+  });
+  let nodes = Array.from(xset).sort((a,b)=>a-b);
+  nodes = nodes.filter((x,i)=> i===0 || x-nodes[i-1] > eps);
+  const n = nodes.length;
+  const ndof = 2*n;
+  const EI = 1e6; // arbitrary constant: valid since beam is prismatic (uniform EI)
+
+  function nodeIdx(x){
+    let best=0, bestD=Infinity;
+    for (let i=0;i<n;i++){ const d=Math.abs(nodes[i]-x); if(d<bestD){bestD=d;best=i;} }
+    return best;
+  }
+
+  let K = Array.from({length:ndof},()=>new Array(ndof).fill(0));
+  let F = new Array(ndof).fill(0);
+
+  state.loads.forEach(ld=>{
+    if (ld.kind === 'point'){
+      const i = nodeIdx(clamp(ld.pos,0,L));
+      F[2*i] += -effMag(ld);
+    } else if (ld.kind === 'moment'){
+      const i = nodeIdx(clamp(ld.pos,0,L));
+      F[2*i+1] += effMag(ld);
+    }
+  });
+
+  for (let e=0;e<n-1;e++){
+    const x1=nodes[e], x2=nodes[e+1], Le=x2-x1;
+    if (Le < eps) continue;
+    const i1=e, i2=e+1;
+    const kk = EI/(Le*Le*Le);
+    const ke = [
+      [12*kk, 6*Le*kk, -12*kk, 6*Le*kk],
+      [6*Le*kk, 4*Le*Le*kk, -6*Le*kk, 2*Le*Le*kk],
+      [-12*kk, -6*Le*kk, 12*kk, -6*Le*kk],
+      [6*Le*kk, 2*Le*Le*kk, -6*Le*kk, 4*Le*Le*kk]
+    ];
+    const map = [2*i1, 2*i1+1, 2*i2, 2*i2+1];
+    for (let a=0;a<4;a++) for (let b=0;b<4;b++) K[map[a]][map[b]] += ke[a][b];
+
+    let wtotal = 0;
+    state.loads.forEach(ld=>{
+      if (ld.kind==='udl'){
+        const a = Math.max(ld.start, x1), b = Math.min(ld.end, x2);
+        if (b - a > eps && a<=x1+eps && b>=x2-eps) wtotal += effMag(ld);
+      }
+    });
+    if (wtotal !== 0){
+      const q = -wtotal;
+      const fe = [q*Le/2, q*Le*Le/12, q*Le/2, -q*Le*Le/12];
+      for (let a=0;a<4;a++) F[map[a]] += fe[a];
+    }
+  }
+
+  const constrained = new Set();
+  supports.forEach(s=>{
+    const i = nodeIdx(s.pos);
+    constrained.add(2*i);
+    if (s.type==='fixed') constrained.add(2*i+1);
+  });
+  const free = [];
+  for (let i=0;i<ndof;i++) if (!constrained.has(i)) free.push(i);
+
+  const Kff = free.map(r=>free.map(c=>K[r][c]));
+  const Ff = free.map(r=>F[r]);
+  const df = free.length ? gaussSolve(Kff, Ff) : [];
+
+  const d = new Array(ndof).fill(0);
+  free.forEach((dof,idx)=>{ d[dof]=df[idx]; });
+
+  supports.forEach(s=>{
+    const i = nodeIdx(s.pos);
+    let Rv=0;
+    for (let c=0;c<ndof;c++) Rv += K[2*i][c]*d[c];
+    Rv -= F[2*i];
+    const out = { F: Rv, type: s.type };
+    if (s.type==='fixed'){
+      let Rm=0;
+      for (let c=0;c<ndof;c++) Rm += K[2*i+1][c]*d[c];
+      Rm -= F[2*i+1];
+      out.M = -Rm; // sign convention: negative = hogging at a fixed support, matches sagging-positive BMD
+    }
+    result.reactions[s.key] = out;
+  });
+
+  return result;
+}
+
+function shearAt(x, reactionResult){
+  const supports = getActiveSupports();
+  let V = 0;
+  for (const s of supports){
+    if (s.pos <= x + 1e-9){
+      const r = reactionResult.reactions[s.key];
+      if (r) V += r.F;
+    }
+  }
+  for (const ld of state.loads){
+    if (ld.kind === 'point'){
+      if (ld.pos <= x + 1e-9) V -= effMag(ld);
+    } else if (ld.kind === 'udl'){
+      const a = ld.start, b = Math.min(ld.end, x);
+      if (b > a) V -= effMag(ld) * (b - a);
+    }
+  }
+  return V;
+}
+
+function momentAt(x, reactionResult){
+  const supports = getActiveSupports();
+  let M = 0;
+  for (const s of supports){
+    if (s.pos <= x + 1e-9){
+      const r = reactionResult.reactions[s.key];
+      if (r) {
+        M += r.F * (x - s.pos);
+        if (r.M) M += r.M;
+      }
+    }
+  }
+  for (const ld of state.loads){
+    if (ld.kind === 'point'){
+      if (ld.pos <= x + 1e-9) M -= effMag(ld) * (x - ld.pos);
+    } else if (ld.kind === 'udl'){
+      const a = ld.start, b = Math.min(ld.end, x);
+      if (b > a){
+        const w = effMag(ld);
+        const centroid = (a + b)/2;
+        M -= w*(b-a) * (x - centroid);
+      }
+    } else if (ld.kind === 'moment'){
+      if (ld.pos <= x + 1e-9) M += effMag(ld);
+    }
+  }
+  return M;
+}
+
+function computeDiagrams(reactionResult, nSteps=240){
+  const L = state.L;
+  const xs = [];
+  const supports = getActiveSupports();
+
+  const critical = new Set([0, L]);
+  supports.forEach(s=>critical.add(round4(s.pos)));
+  state.loads.forEach(ld=>{
+    if (ld.kind==='point' || ld.kind==='moment') critical.add(round4(ld.pos));
+    if (ld.kind==='udl'){ critical.add(round4(ld.start)); critical.add(round4(ld.end)); }
+  });
+
+  for (let i=0;i<=nSteps;i++){
+    xs.push(L * i/nSteps);
+  }
+  const eps = L*0.0005 || 0.001;
+  const extra = [];
+  critical.forEach(c=>{
+    extra.push(clamp(c-eps,0,L));
+    extra.push(clamp(c+eps,0,L));
+    extra.push(c);
+  });
+  const allXs = Array.from(new Set([...xs, ...extra])).sort((a,b)=>a-b);
+
+  const shearVals = allXs.map(x=>shearAt(x, reactionResult));
+  const momentVals = allXs.map(x=>momentAt(x, reactionResult));
+
+  return { xs: allXs, V: shearVals, M: momentVals };
+}
+function round4(n){ return Math.round(n*10000)/10000; }
+
+/* ============== RENDER: BEAM STAGE ============== */
+function renderStage(){
+  stage.innerHTML = '';
+  const L = state.L;
+  const beamY = 110;
+  const x0 = xToSvg(0), x1 = xToSvg(L);
+
+  const nTicks = Math.min(12, Math.max(4, Math.round(L)));
+  for (let i=0;i<=nTicks;i++){
+    const xv = (L*i/nTicks);
+    const px = xToSvg(xv);
+    el('line', {x1:px,y1:beamY-6,x2:px,y2:beamY+6,stroke:'#C7C2B4','stroke-width':1}, stage);
+    el('text', {x:px,y:beamY+34,'text-anchor':'middle','font-size':'11','font-family':'JetBrains Mono, monospace',fill:'#8A8474'}, stage).textContent = xv.toFixed(1);
+  }
+
+  el('line', {x1:x0,y1:beamY,x2:x1,y2:beamY,stroke:'var(--ink)','stroke-width':6,'stroke-linecap':'round'}, stage);
+  const beamOverlay = el('line', {x1:x0,y1:beamY,x2:x1,y2:beamY,'stroke-width':3,'stroke-linecap':'round'}, stage);
+  beamOverlay.setAttribute('stroke', '#3B5B7A');
+
+  state.supports.forEach(s=> drawSupport(s.key, s, beamY));
+  state.loads.forEach(ld=>drawLoad(ld, beamY));
+
+  el('line', {x1:x0,y1:beamY+50,x2:x1,y2:beamY+50,stroke:'#8A8474','stroke-width':1}, stage);
+  el('line', {x1:x0,y1:beamY+45,x2:x0,y2:beamY+55,stroke:'#8A8474','stroke-width':1}, stage);
+  el('line', {x1:x1,y1:beamY+45,x2:x1,y2:beamY+55,stroke:'#8A8474','stroke-width':1}, stage);
+  const dimLabel = el('text', {x:(x0+x1)/2, y:beamY+70, 'text-anchor':'middle','font-size':'12','font-family':'JetBrains Mono, monospace', fill:'#4A5568','font-weight':'600'}, stage);
+  dimLabel.textContent = `L = ${L.toFixed(2)} m`;
+}
+
+function drawSupport(key, sup, beamY){
+  if (sup.type === 'none') return;
+  const px = xToSvg(clamp(sup.pos, 0, state.L));
+  const g = el('g', {class:'support-drag', 'data-support-id':sup.id, style:'cursor:grab'}, stage);
+
+  if (sup.type === 'fixed'){
+    el('line', {x1:px, y1:beamY-24, x2:px, y2:beamY+24, stroke:'#1A2332','stroke-width':4}, g);
+    for (let i=-24;i<=24;i+=8){
+      el('line', {x1:px, y1:beamY+i, x2:px-8, y2:beamY+i+8, stroke:'#1A2332','stroke-width':2}, g);
+    }
+  } else if (sup.type === 'pin'){
+    const s=13;
+    el('polygon', {points:`${px},${beamY} ${px-s},${beamY+22} ${px+s},${beamY+22}`, fill:'#fff', stroke:'#1A2332','stroke-width':2.5}, g);
+    hatch(g, px-s, px+s, beamY+22);
+  } else if (sup.type === 'roller'){
+    const s=13;
+    el('polygon', {points:`${px},${beamY} ${px-s},${beamY+20} ${px+s},${beamY+20}`, fill:'#fff', stroke:'#1A2332','stroke-width':2.5}, g);
+    el('circle', {cx:px-7, cy:beamY+25, r:4, fill:'#fff', stroke:'#1A2332','stroke-width':2}, g);
+    el('circle', {cx:px+7, cy:beamY+25, r:4, fill:'#fff', stroke:'#1A2332','stroke-width':2}, g);
+    hatch(g, px-s, px+s, beamY+29);
+  }
+  el('text', {x:px, y:beamY+46, 'text-anchor':'middle','font-size':'11','font-family':'JetBrains Mono, monospace','font-weight':'700', fill:'#3B5B7A'}, g).textContent = key;
+
+  el('rect', {x:px-20,y:beamY-10,width:40,height:50, fill:'transparent'}, g);
+}
+function hatch(g, xA, xB, y){
+  el('line', {x1:xA-4,y1:y,x2:xB+4,y2:y, stroke:'#1A2332','stroke-width':2}, g);
+  for (let x=xA;x<=xB;x+=6){
+    el('line', {x1:x,y1:y,x2:x-5,y2:y+7, stroke:'#1A2332','stroke-width':1.5}, g);
+  }
+}
+
+function drawLoad(ld, beamY){
+  const isOff = ld.active === false;
+  const color = isOff ? '#9AA0A6' : (ld.kind === 'moment' ? '#8B5FBF' : '#C4432A');
+  const groupOpacity = isOff ? '0.4' : '1';
+  if (ld.kind === 'point'){
+    const px = xToSvg(clamp(ld.pos,0,state.L));
+    const g = el('g', {class:'load-drag', 'data-id':ld.id, style:'cursor:grab', opacity:groupOpacity}, stage);
+    const dir = ld.mag >= 0 ? 1 : -1;
+    const arrowTop = beamY - 55*dir;
+    el('line', {x1:px,y1:arrowTop,x2:px,y2:beamY-4*dir, stroke:color,'stroke-width':2.5}, g);
+    const ah = 8;
+    el('polygon', {points:`${px},${beamY-1*dir} ${px-ah/1.6},${beamY-(1+ah*0.8)*dir} ${px+ah/1.6},${beamY-(1+ah*0.8)*dir}`, fill:color}, g);
+    const txt = el('text', {x:px, y: dir>0 ? arrowTop-8 : arrowTop+16, 'text-anchor':'middle','font-size':'12','font-family':'JetBrains Mono, monospace','font-weight':'700', fill:color}, g);
+    txt.textContent = loadLabelText(ld, 't');
+    el('rect', {x:px-16,y:Math.min(arrowTop,beamY)-16,width:32,height:Math.abs(beamY-arrowTop)+32, fill:'transparent'}, g);
+  } else if (ld.kind === 'udl'){
+    const xA = xToSvg(clamp(ld.start,0,state.L));
+    const xB = xToSvg(clamp(ld.end,0,state.L));
+    const dir = ld.mag >= 0 ? 1 : -1;
+    const topY = beamY - 34*dir;
+    const g = el('g', {class:'udl-drag', 'data-id':ld.id, opacity:groupOpacity}, stage);
+    el('line', {x1:xA,y1:topY,x2:xB,y2:topY, stroke:color,'stroke-width':2}, g);
+    const n = Math.max(3, Math.round((xB-xA)/22));
+    for (let i=0;i<=n;i++){
+      const x = xA + (xB-xA)*i/n;
+      el('line', {x1:x,y1:topY,x2:x,y2:beamY-3*dir, stroke:color,'stroke-width':1.6}, g);
+      const ah=5;
+      el('polygon', {points:`${x},${beamY-1*dir} ${x-ah/1.5},${beamY-(1+ah*0.9)*dir} ${x+ah/1.5},${beamY-(1+ah*0.9)*dir}`, fill:color}, g);
+    }
+    const txt = el('text', {x:(xA+xB)/2, y: dir>0?topY-8:topY+16, 'text-anchor':'middle','font-size':'11','font-family':'JetBrains Mono, monospace','font-weight':'700', fill:color}, g);
+    txt.textContent = loadLabelText(ld, 't/m');
+
+    el('circle', {cx:xA, cy:beamY, r:9, fill:color, opacity:'0.001', class:'udl-handle', 'data-id':ld.id, 'data-end':'start', style:'cursor:ew-resize'}, stage);
+    el('circle', {cx:xB, cy:beamY, r:9, fill:color, opacity:'0.001', class:'udl-handle', 'data-id':ld.id, 'data-end':'end', style:'cursor:ew-resize'}, stage);
+    el('rect', {x:xA-3,y:beamY-3,width:6,height:6, fill:color, 'pointer-events':'none', opacity:groupOpacity}, stage);
+    el('rect', {x:xB-3,y:beamY-3,width:6,height:6, fill:color, 'pointer-events':'none', opacity:groupOpacity}, stage);
+
+    el('rect', {x:xA+9, y:Math.min(topY,beamY)-6, width:Math.max(2,(xB-xA)-18), height:Math.abs(beamY-topY)+12, fill:'transparent', class:'udl-drag-body', 'data-id':ld.id, style:'cursor:grab'}, stage);
+  } else if (ld.kind === 'moment'){
+    const px = xToSvg(clamp(ld.pos,0,state.L));
+    const g = el('g', {class:'load-drag', 'data-id':ld.id, style:'cursor:grab', opacity:groupOpacity}, stage);
+    const r = 16;
+    const cw = ld.mag >= 0;
+    const path = describeArc(px, beamY-30, r, cw);
+    el('path', {d:path, fill:'none', stroke:color, 'stroke-width':2.5}, g);
+    const angEnd = cw ? -40 : 220;
+    const rad = angEnd*Math.PI/180;
+    const ax = px + r*Math.cos(rad), ay = (beamY-30) + r*Math.sin(rad);
+    el('circle', {cx:ax,cy:ay,r:3, fill:color}, g);
+    const txt = el('text', {x:px, y:beamY-56, 'text-anchor':'middle','font-size':'11','font-family':'JetBrains Mono, monospace','font-weight':'700', fill:color}, g);
+    txt.textContent = loadLabelText(ld, 't·m');
+    el('rect', {x:px-20,y:beamY-70,width:40,height:60, fill:'transparent'}, g);
+  }
+}
+function describeArc(cx,cy,r,cw){
+  const start = cw ? 220 : -40;
+  const end = cw ? -40 : 220;
+  const s = polar(cx,cy,r,start), e = polar(cx,cy,r,end);
+  const largeArc = 0;
+  const sweep = cw ? 1 : 0;
+  return `M ${s.x} ${s.y} A ${r} ${r} 0 ${largeArc} ${sweep} ${e.x} ${e.y}`;
+}
+function polar(cx,cy,r,angDeg){
+  const rad = angDeg*Math.PI/180;
+  return {x:cx+r*Math.cos(rad), y:cy+r*Math.sin(rad)};
+}
+
+/* ============== RENDER: DIAGRAMS ============== */
+function renderDiagram(svg, xs, ys, color, unit){
+  svg.innerHTML = '';
+  const W = 900, H = 200, marginX = 70, marginTop=20, marginBottom=36;
+  const plotH = H - marginTop - marginBottom;
+  const maxAbs = Math.max(1e-6, ...ys.map(v=>Math.abs(v)));
+  const scale = (plotH/2 - 6) / maxAbs;
+  const midY = marginTop + plotH/2;
+
+  const L = state.L;
+  const xScale = (x)=> marginX + (x/L)*(W - 2*marginX);
+  const yScale = (v)=> midY - v*scale;
+
+  const nTicks = Math.min(12, Math.max(4, Math.round(L)));
+  for (let i=0;i<=nTicks;i++){
+    const xv = L*i/nTicks;
+    const px = xScale(xv);
+    el('line', {x1:px,y1:marginTop,x2:px,y2:H-marginBottom, stroke:'#EDEAE0','stroke-width':1}, svg);
+    el('text', {x:px,y:H-marginBottom+16,'text-anchor':'middle','font-size':'9','font-family':'JetBrains Mono, monospace',fill:'#8A8474'}, svg).textContent = xv.toFixed(1);
+  }
+  el('line', {x1:marginX,y1:midY,x2:W-marginX,y2:midY, stroke:'#1A2332','stroke-width':1.5}, svg);
+
+  let d = `M ${xScale(xs[0])} ${yScale(ys[0])}`;
+  for (let i=1;i<xs.length;i++){
+    d += ` L ${xScale(xs[i])} ${yScale(ys[i])}`;
+  }
+  const areaD = d + ` L ${xScale(xs[xs.length-1])} ${midY} L ${xScale(xs[0])} ${midY} Z`;
+  el('path', {d:areaD, fill:color, opacity:'0.18'}, svg);
+  el('path', {d:d, fill:'none', stroke:color, 'stroke-width':2.4, 'stroke-linejoin':'round'}, svg);
+
+  let maxIdx=0, minIdx=0;
+  ys.forEach((v,i)=>{ if(v>ys[maxIdx]) maxIdx=i; if(v<ys[minIdx]) minIdx=i; });
+  [maxIdx, minIdx].forEach(idx=>{
+    const v = ys[idx];
+    if (Math.abs(v) < 1e-3) return;
+    const px = xScale(xs[idx]), py = yScale(v);
+    el('circle', {cx:px,cy:py,r:3.5, fill:color}, svg);
+    const txt = el('text', {x:px, y: v>=0? py-8: py+16, 'text-anchor':'middle','font-size':'10','font-family':'JetBrains Mono, monospace','font-weight':'700', fill:color}, svg);
+    txt.textContent = `${v.toFixed(2)}`;
+  });
+
+  el('text', {x:12, y:14, 'font-size':'10','font-family':'JetBrains Mono, monospace', fill:'#8A8474'}, svg).textContent = unit;
+}
+
+/* ============== MAIN RECOMPUTE ============== */
+function recompute(){
+  state.L = Math.max(0.1, evalMathInput(beamLengthInput.value, state.L) || 0.1);
+  state.supports.forEach(s=>{ s.pos = clamp(s.pos, 0, state.L); });
+  relabelSupports();
+
+  const reactionResult = solveReactions();
+  renderReactionTable(reactionResult);
+  renderSupportValuesTable(reactionResult);
+
+  if (reactionResult.valid){
+    const diag = computeDiagrams(reactionResult);
+    renderDiagram(sfdSvg, diag.xs, diag.V, '#8B5FBF', 'V (t)');
+    renderDiagram(bmdSvg, diag.xs, diag.M, '#4A7A5C', 'M (t·m)');
+    const maxV = Math.max(...diag.V.map(Math.abs));
+    const maxM = Math.max(...diag.M.map(Math.abs));
+    const vLabel = state.combo.enabled ? 'Vu' : 'V';
+    const mLabel = state.combo.enabled ? 'Mu' : 'M';
+    $('#maxShear').textContent = `max |${vLabel}| = ${maxV.toFixed(2)} t`;
+    $('#maxMoment').textContent = `max |${mLabel}| = ${maxM.toFixed(2)} t·m`;
+  } else {
+    sfdSvg.innerHTML = '';
+    bmdSvg.innerHTML = '';
+    $('#maxShear').textContent = '';
+    $('#maxMoment').textContent = '';
+  }
+
+  renderStage();
+  renderLoadList();
+  renderSupportList();
+  onStateChanged();
+}
+
+function renderReactionTable(result){
+  reactionTable.innerHTML = '';
+  if (!result.valid){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td colspan="3" style="color:var(--load); font-weight:600;">⚠ ${result.message}</td>`;
+    reactionTable.appendChild(tr);
+    return;
+  }
+  const headerRow = document.createElement('tr');
+  const rLabel = state.combo.enabled ? 'Ru' : 'R';
+  const rmLabel = state.combo.enabled ? 'Mu' : 'M';
+  headerRow.innerHTML = `<th>Support</th><th>Force ${rLabel} (t, ↑+)</th><th>Moment ${rmLabel} (t·m)</th>`;
+  reactionTable.appendChild(headerRow);
+  for (const key in result.reactions){
+    const r = result.reactions[key];
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${key} (${supportLabel(r.type)})</td><td class="num">${fmt(r.F)}</td><td class="num">${r.M!==undefined ? fmt(r.M) : '—'}</td>`;
+    reactionTable.appendChild(tr);
+  }
+}
+function supportLabel(t){
+  return {pin:'Pin', roller:'Roller', fixed:'Fixed', none:'—'}[t] || t;
+}
+
+function renderSupportValuesTable(result){
+  supportValuesTable.innerHTML = '';
+  if (!result.valid){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td colspan="5" style="color:var(--load); font-weight:600;">⚠ ${result.message}</td>`;
+    supportValuesTable.appendChild(tr);
+    return;
+  }
+  const L = state.L;
+  const eps = Math.max(L*0.0005, 1e-4);
+  const vLabel = state.combo.enabled ? 'Vu' : 'V';
+  const mLabel = state.combo.enabled ? 'Mu' : 'M';
+  const rLabel = state.combo.enabled ? 'Ru' : 'R';
+  const headerRow = document.createElement('tr');
+  headerRow.innerHTML = `<th>Support</th><th>${vLabel} ซ้าย (t)</th><th>${vLabel} ขวา (t)</th><th>${rLabel} = จาก jump (t)</th><th>${mLabel} (t·m)</th>`;
+  supportValuesTable.appendChild(headerRow);
+
+  getActiveSupports().forEach(s=>{
+    const atLeftEnd = s.pos <= eps;
+    const atRightEnd = s.pos >= L - eps;
+    const vLeftNum = atLeftEnd ? 0 : shearAt(clamp(s.pos-eps,0,L), result);
+    const vRightNum = atRightEnd ? 0 : shearAt(clamp(s.pos+eps,0,L), result);
+    const vLeft = atLeftEnd ? '—' : fmt(vLeftNum);
+    const vRight = atRightEnd ? '—' : fmt(vRightNum);
+    const rJump = fmt(vRightNum - vLeftNum);
+    const m = fmt(momentAt(s.pos, result));
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${s.key} (${supportLabel(s.type)})</td><td class="num">${vLeft}</td><td class="num">${vRight}</td><td class="num">${rJump}</td><td class="num">${m}</td>`;
+    supportValuesTable.appendChild(tr);
+  });
+}
+
+function renderSupportList(){
+  supportListEl.innerHTML = '';
+  state.supports.forEach(s=>{
+    const row = document.createElement('div');
+    row.className = 'load-row';
+    const typeOptions = ['pin','roller','fixed','none'].map(t=>
+      `<option value="${t}" ${s.type===t?'selected':''}>${supportLabel(t)}</option>`
+    ).join('');
+    row.innerHTML = `
+      <span class="swatch" style="background:var(--steel)"></span>
+      <strong style="width:16px;">${s.key}</strong>
+      <select data-id="${s.id}" data-field="type">${typeOptions}</select>
+      @ <input type="text" inputmode="decimal" value="${s.pos}" data-id="${s.id}" data-field="pos" style="width:64px;"> m
+      <button class="rm danger" data-remove-support="${s.id}">ลบ</button>
+    `;
+    supportListEl.appendChild(row);
+  });
+
+  supportListEl.querySelectorAll('[data-field]').forEach(inp=>{
+    inp.addEventListener('change', (e)=>{
+      const id = parseInt(e.target.dataset.id);
+      const field = e.target.dataset.field;
+      const s = state.supports.find(x=>x.id===id);
+      if (!s) return;
+      if (field==='pos'){
+        s.pos = evalMathInput(e.target.value, s.pos) || 0;
+        e.target.value = round4(s.pos);
+      } else {
+        s[field] = e.target.value;
+      }
+      recompute();
+    });
+  });
+  supportListEl.querySelectorAll('[data-remove-support]').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      const id = parseInt(e.target.dataset.removeSupport);
+      state.supports = state.supports.filter(s=>s.id!==id);
+      recompute();
+    });
+  });
+}
+
+function renderLoadList(){
+  loadListEl.innerHTML = '';
+  state.loads.forEach(ld=>{
+    const row = document.createElement('div');
+    row.className = 'load-row';
+    const isActive = ld.active !== false;
+    row.style.opacity = isActive ? '1' : '0.5';
+    const color = ld.kind==='moment' ? 'var(--shear)' : 'var(--load)';
+    let fields = '';
+    if (ld.kind === 'point'){
+      fields = `Point @ <input type="text" inputmode="decimal" value="${ld.pos}" data-id="${ld.id}" data-field="pos" style="width:64px;"> m &nbsp; P=<input type="text" inputmode="decimal" value="${ld.mag}" data-id="${ld.id}" data-field="mag" style="width:64px;"> t`;
+    } else if (ld.kind === 'udl'){
+      fields = `UDL <input type="text" inputmode="decimal" value="${ld.start}" data-id="${ld.id}" data-field="start" style="width:56px;">→<input type="text" inputmode="decimal" value="${ld.end}" data-id="${ld.id}" data-field="end" style="width:56px;"> m &nbsp; w=<input type="text" inputmode="decimal" value="${ld.mag}" data-id="${ld.id}" data-field="mag" style="width:56px;"> t/m`;
+    } else if (ld.kind === 'moment'){
+      fields = `Moment @ <input type="text" inputmode="decimal" value="${ld.pos}" data-id="${ld.id}" data-field="pos" style="width:64px;"> m &nbsp; M=<input type="text" inputmode="decimal" value="${ld.mag}" data-id="${ld.id}" data-field="mag" style="width:64px;"> t·m`;
+    }
+    const catOptions = ['DL','SDL','LL'].map(c=>
+      `<option value="${c}" ${((ld.cat||'DL')===c)?'selected':''}>${c}</option>`
+    ).join('');
+    const catSelect = `<select data-id="${ld.id}" data-field="cat">${catOptions}</select>`;
+    const toggleBtn = `<button class="toggle-active" data-toggle-active="${ld.id}" title="${isActive?'ปิดใช้งานแรงนี้ (ไม่ลบ)':'เปิดใช้งานแรงนี้'}" style="width:30px;">${isActive?'👁':'🚫'}</button>`;
+    row.innerHTML = `<span class="swatch" style="background:${color}"></span>${toggleBtn}${catSelect}${fields}<button class="rm danger" data-remove="${ld.id}">ลบ</button>`;
+    loadListEl.appendChild(row);
+  });
+
+  loadListEl.querySelectorAll('input').forEach(inp=>{
+    inp.addEventListener('change', (e)=>{
+      const id = parseInt(e.target.dataset.id);
+      const field = e.target.dataset.field;
+      const ld = state.loads.find(l=>l.id===id);
+      if (ld) {
+        ld[field] = evalMathInput(e.target.value, ld[field]) || 0;
+        e.target.value = round4(ld[field]);
+        recompute();
+      }
+    });
+  });
+  loadListEl.querySelectorAll('select[data-field="cat"]').forEach(sel=>{
+    sel.addEventListener('change', (e)=>{
+      const id = parseInt(e.target.dataset.id);
+      const ld = state.loads.find(l=>l.id===id);
+      if (ld) {
+        ld.cat = e.target.value;
+        recompute();
+      }
+    });
+  });
+  loadListEl.querySelectorAll('[data-toggle-active]').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      const id = parseInt(e.target.dataset.toggleActive);
+      const ld = state.loads.find(l=>l.id===id);
+      if (ld) {
+        ld.active = ld.active === false ? true : false;
+        recompute();
+      }
+    });
+  });
+  loadListEl.querySelectorAll('[data-remove]').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      const id = parseInt(e.target.dataset.remove);
+      state.loads = state.loads.filter(l=>l.id!==id);
+      recompute();
+    });
+  });
+}
+
+/* ============== EVENTS: form inputs ============== */
+beamLengthInput.addEventListener('change', ()=>{
+  recompute();
+  beamLengthInput.value = round4(state.L);
+});
+beamLengthInput.addEventListener('input', recompute);
+
+$('#addSupport').addEventListener('click', ()=>{
+  const L = state.L;
+  const usedPositions = state.supports.map(s=>s.pos);
+  let pos = L/2;
+  const candidates = [0, L, L/3, 2*L/3, L/4, 3*L/4, L/2];
+  for (const c of candidates){
+    if (!usedPositions.some(p=>Math.abs(p-c) < L*0.02)){ pos = c; break; }
+  }
+  state.supports.push({ id: nextSupportId++, key:'?', type:'roller', pos: round4(pos) });
+  state.supports.sort((a,b)=>a.pos-b.pos);
+  relabelSupports();
+  recompute();
+});
+
+$('#addPoint').addEventListener('click', ()=>{
+  state.loads.push({id:nextId++, kind:'point', pos: state.L/2, mag:10, cat:'DL', active:true});
+  recompute();
+});
+$('#addUdl').addEventListener('click', ()=>{
+  state.loads.push({id:nextId++, kind:'udl', start:0, end:state.L, mag:2, cat:'DL', active:true});
+  recompute();
+});
+$('#addMoment').addEventListener('click', ()=>{
+  state.loads.push({id:nextId++, kind:'moment', pos: state.L/2, mag:5, cat:'DL', active:true});
+  recompute();
+});
+
+/* ============== EVENTS: load combination ============== */
+const comboEnabledEl = $('#comboEnabled');
+const factorDLEl = $('#factorDL');
+const factorSDLEl = $('#factorSDL');
+const factorLLEl = $('#factorLL');
+comboEnabledEl.addEventListener('change', ()=>{
+  state.combo.enabled = comboEnabledEl.checked;
+  recompute();
+});
+[[factorDLEl,'DL'], [factorSDLEl,'SDL'], [factorLLEl,'LL']].forEach(([elInput, cat])=>{
+  elInput.addEventListener('change', ()=>{
+    state.combo.factors[cat] = evalMathInput(elInput.value, state.combo.factors[cat]) || 0;
+    elInput.value = round4(state.combo.factors[cat]);
+    recompute();
+  });
+  elInput.addEventListener('input', ()=>{
+    state.combo.factors[cat] = evalMathInput(elInput.value, state.combo.factors[cat]) || 0;
+    recompute();
+  });
+});
+
+/* ============== EVENTS: dragging on stage ============== */
+function svgPoint(evt){
+  const rect = stage.getBoundingClientRect();
+  const clientX = evt.touches ? evt.touches[0].clientX : evt.clientX;
+  const scaleX = STAGE_W / rect.width;
+  return (clientX - rect.left) * scaleX;
+}
+
+stage.addEventListener('pointerdown', (e)=>{
+  const target = e.target.closest('[class]');
+  if (!target) return;
+  const cls = target.getAttribute('class') || '';
+
+  if (cls.includes('support-drag') || target.closest('.support-drag')){
+    const g = target.closest('.support-drag') || target;
+    dragTarget = {kind:'support', id: parseInt(g.getAttribute('data-support-id'))};
+    stage.setPointerCapture(e.pointerId);
+  } else if (cls.includes('udl-handle')){
+    dragTarget = {kind:'udl-end', id: parseInt(target.getAttribute('data-id')), end: target.getAttribute('data-end')};
+    stage.setPointerCapture(e.pointerId);
+  } else if (cls.includes('udl-drag-body')){
+    const id = parseInt(target.getAttribute('data-id'));
+    const ld = state.loads.find(l=>l.id===id);
+    dragTarget = {kind:'udl-body', id, startX: svgToX(svgPoint(e)), origStart: ld.start, origEnd: ld.end};
+    stage.setPointerCapture(e.pointerId);
+  } else if (cls.includes('load-drag') || target.closest('.load-drag')){
+    const g = target.closest('.load-drag') || target;
+    dragTarget = {kind:'load', id: parseInt(g.getAttribute('data-id'))};
+    stage.setPointerCapture(e.pointerId);
+  }
+});
+
+stage.addEventListener('pointermove', (e)=>{
+  if (!dragTarget) return;
+  const px = svgPoint(e);
+  const x = svgToX(px);
+
+  if (dragTarget.kind === 'support'){
+    const s = state.supports.find(sp=>sp.id===dragTarget.id);
+    if (s) s.pos = round4(x);
+  } else if (dragTarget.kind === 'load'){
+    const ld = state.loads.find(l=>l.id===dragTarget.id);
+    if (ld) ld.pos = round4(x);
+  } else if (dragTarget.kind === 'udl-end'){
+    const ld = state.loads.find(l=>l.id===dragTarget.id);
+    if (ld){
+      if (dragTarget.end === 'start') ld.start = round4(Math.min(x, ld.end-0.05));
+      else ld.end = round4(Math.max(x, ld.start+0.05));
+    }
+  } else if (dragTarget.kind === 'udl-body'){
+    const ld = state.loads.find(l=>l.id===dragTarget.id);
+    if (ld){
+      const delta = x - dragTarget.startX;
+      const len = dragTarget.origEnd - dragTarget.origStart;
+      let newStart = dragTarget.origStart + delta;
+      newStart = clamp(newStart, 0, state.L-len);
+      ld.start = round4(newStart);
+      ld.end = round4(newStart+len);
+    }
+  }
+  recompute();
+});
+
+['pointerup','pointercancel','pointerleave'].forEach(evt=>{
+  stage.addEventListener(evt, ()=>{ dragTarget = null; });
+});
+
+/* =====================================================================
+   PROJECT FILES (.beam) — ข้อมูลโปรเจกต์แยกจากตัวแอป
+   ไฟล์ .beam เป็น JSON: { app, format, savedAt, state }
+   เปิดไฟล์เก่าได้เสมอในแอปเวอร์ชันใหม่ (ถ้าเปลี่ยนโครงสร้าง state ให้เพิ่ม
+   FILE_FORMAT แล้วเขียนตัวแปลงใน migrateState())
+   ===================================================================== */
+const FILE_FORMAT = 1;
+const AUTOSAVE_KEY = 'beam2d:autosave';
+const PICKER_TYPES = [{ description: 'Beam 2D project (.beam)', accept: {'application/json': ['.beam']} }];
+
+let currentHandle = null;   // File System Access handle ของไฟล์ที่เปิด/บันทึกล่าสุด
+let currentName = null;     // ชื่อไฟล์ปัจจุบัน
+let dirty = false;          // มีการแก้ไขที่ยังไม่บันทึก
+let appReady = false;       // กัน dirty ตอนโหลดครั้งแรก
+
+const saveStatusEl = $('#saveStatus');
+const toastEl = $('#toast');
+const fileInputEl = $('#fileInput');
+
+function showToast(msg){
+  toastEl.textContent = msg;
+  toastEl.style.opacity = '1';
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(()=>{ toastEl.style.opacity = '0'; }, 2500);
+}
+
+function updateStatus(){
+  const name = currentName ? `📄 ${currentName}` : 'ยังไม่ได้บันทึกเป็นไฟล์';
+  saveStatusEl.innerHTML = '';
+  const span = document.createElement('span');
+  span.textContent = name;
+  saveStatusEl.appendChild(span);
+  if (dirty){
+    const d = document.createElement('span');
+    d.className = 'dirty';
+    d.textContent = ' • แก้ไขแล้ว ยังไม่บันทึก';
+    saveStatusEl.appendChild(d);
+  }
+}
+
+function onStateChanged(){
+  if (!appReady) return;
+  if (!dirty){ dirty = true; updateStatus(); }
+  scheduleAutosave();
+}
+
+/* ---- autosave ลงเครื่อง (กันงานหายตอนปิดแอป/อัปเดตเวอร์ชัน) ---- */
+function writeAutosave(){
+  try {
+    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ state, name: currentName, dirty, at: Date.now() }));
+  } catch(e){ /* storage ไม่พร้อม — ข้าม */ }
+}
+function scheduleAutosave(){
+  clearTimeout(scheduleAutosave._t);
+  scheduleAutosave._t = setTimeout(writeAutosave, 400);
+}
+function readAutosave(){
+  try {
+    const raw = localStorage.getItem(AUTOSAVE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch(e){ return null; }
+}
+
+/* ---- แปลง/ตรวจ state ---- */
+function migrateState(s, format){
+  // format 1 = โครงสร้างปัจจุบัน; เวอร์ชันอนาคตเพิ่มตัวแปลงที่นี่
+  if (!s || !Array.isArray(s.supports) || !Array.isArray(s.loads) || typeof s.L !== 'number'){
+    throw new Error('ข้อมูลในไฟล์ไม่ถูกต้อง');
+  }
+  if (!s.combo) s.combo = { enabled:false, factors:{DL:1.4, SDL:1.4, LL:1.7} };
+  if (!s.combo.factors) s.combo.factors = {DL:1.4, SDL:1.4, LL:1.7};
+  s.loads.forEach(l=>{ if (!l.cat) l.cat = 'DL'; });
+  return s;
+}
+
+function applyState(s){
+  state = migrateState(s);
+  const loadIds = state.loads.map(l=>l.id);
+  const supportIds = state.supports.map(x=>x.id);
+  nextId = (loadIds.length ? Math.max(...loadIds) : 0) + 1;
+  nextSupportId = (supportIds.length ? Math.max(...supportIds) : 0) + 1;
+  beamLengthInput.value = state.L;
+  comboEnabledEl.checked = !!state.combo.enabled;
+  factorDLEl.value = state.combo.factors.DL;
+  factorSDLEl.value = state.combo.factors.SDL;
+  factorLLEl.value = state.combo.factors.LL;
+  recompute();
+}
+
+function serializeProject(){
+  // commit ช่องที่กำลังพิมพ์ค้างอยู่ก่อน
+  if (document.activeElement && document.activeElement.tagName === 'INPUT'){
+    document.activeElement.blur();
+  }
+  recompute();
+  return JSON.stringify({
+    app: 'beam2d',
+    format: FILE_FORMAT,
+    savedAt: new Date().toISOString(),
+    state
+  }, null, 2);
+}
+
+function parseProjectText(text){
+  const t = text.trim();
+  if (t.startsWith('{')){
+    const obj = JSON.parse(t);
+    if (obj.app === 'beam2d' && obj.state){
+      if ((obj.format || 1) > FILE_FORMAT) throw new Error('ไฟล์นี้มาจากแอปเวอร์ชันใหม่กว่า — กรุณาอัปเดตแอปก่อน');
+      return { state: obj.state, legacy:false };
+    }
+    if (obj.supports && obj.loads) return { state: obj, legacy:false };
+    throw new Error('ไม่ใช่ไฟล์ Beam 2D');
+  }
+  // ไฟล์ .html ที่เซฟจากเวอร์ชันเก่า (เก็บ state ไว้ใน window.__SAVED_STATE__)
+  const m = text.match(/window\.__SAVED_STATE__\s*=\s*(\{[\s\S]*?\});\s*<\/script>/);
+  if (m) return { state: JSON.parse(m[1]), legacy:true };
+  throw new Error('ไม่พบข้อมูล Beam 2D ในไฟล์นี้');
+}
+
+function defaultFilename(){
+  const stamp = new Date().toISOString().slice(0,16).replace(/[:T]/g,'-');
+  return `beam-${stamp}.beam`;
+}
+
+function downloadFallback(content, filename){
+  const blob = new Blob([content], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+
+async function writeToHandle(handle, content){
+  const writable = await handle.createWritable();
+  await writable.write(content);
+  await writable.close();
+}
+
+function markSaved(name, handle){
+  currentName = name;
+  currentHandle = handle || null;
+  dirty = false;
+  updateStatus();
+  writeAutosave();
+}
+
+async function doSaveAs(){
+  const content = serializeProject();
+  const suggested = currentName && currentName.endsWith('.beam') ? currentName : defaultFilename();
+  if (window.showSaveFilePicker){
+    try {
+      const handle = await window.showSaveFilePicker({ suggestedName: suggested, types: PICKER_TYPES });
+      await writeToHandle(handle, content);
+      markSaved(handle.name, handle);
+      showToast(`✓ บันทึก ${handle.name} แล้ว`);
+      return;
+    } catch(err){
+      if (err.name === 'AbortError') return;
+      // picker ใช้ไม่ได้ (เช่นอยู่ใน iframe) → ดาวน์โหลดแทน
+    }
+  }
+  downloadFallback(content, suggested);
+  markSaved(suggested, null);
+  showToast(`✓ ดาวน์โหลด ${suggested} แล้ว`);
+}
+
+async function doSave(){
+  if (!currentHandle) return doSaveAs();
+  const content = serializeProject();
+  try {
+    if (currentHandle.queryPermission && (await currentHandle.queryPermission({mode:'readwrite'})) !== 'granted'){
+      if ((await currentHandle.requestPermission({mode:'readwrite'})) !== 'granted') throw new Error('permission-denied');
+    }
+    await writeToHandle(currentHandle, content);
+    markSaved(currentHandle.name, currentHandle);
+    showToast(`✓ บันทึกทับ ${currentHandle.name} แล้ว`);
+  } catch(err){
+    showToast('⚠ บันทึกทับไม่สำเร็จ — กรุณา Save As');
+    currentHandle = null;
+    updateStatus();
+  }
+}
+
+function confirmDiscard(){
+  return !dirty || confirm('มีการแก้ไขที่ยังไม่บันทึก ต้องการทิ้งการแก้ไขนี้หรือไม่?');
+}
+
+async function loadFromFile(file, handle){
+  try {
+    const text = await file.text();
+    const { state: s, legacy } = parseProjectText(text);
+    appReady = false;
+    applyState(s);
+    appReady = true;
+    if (legacy){
+      markSaved(null, null);
+      dirty = true; updateStatus(); writeAutosave();
+      showToast('✓ นำเข้าจากไฟล์ .html เวอร์ชันเก่าแล้ว — กด Save As เพื่อเก็บเป็น .beam');
+    } else {
+      markSaved(file.name, handle || null);
+      showToast(`✓ เปิด ${file.name} แล้ว`);
+    }
+  } catch(err){
+    appReady = true;
+    showToast('⚠ เปิดไฟล์ไม่ได้: ' + err.message);
+  }
+}
+
+async function doOpen(){
+  if (!confirmDiscard()) return;
+  if (window.showOpenFilePicker){
+    try {
+      const [handle] = await window.showOpenFilePicker({
+        types: [{ description: 'Beam 2D project', accept: {'application/json': ['.beam', '.json'], 'text/html': ['.html']} }],
+        multiple: false
+      });
+      const file = await handle.getFile();
+      const isBeam = /\.(beam|json)$/i.test(file.name);
+      await loadFromFile(file, isBeam ? handle : null);
+      return;
+    } catch(err){
+      if (err.name === 'AbortError') return;
+    }
+  }
+  fileInputEl.value = '';
+  fileInputEl.click();
+}
+fileInputEl.addEventListener('change', ()=>{
+  const f = fileInputEl.files && fileInputEl.files[0];
+  if (f) loadFromFile(f, null);
+});
+
+function doNew(){
+  if (!confirmDiscard()) return;
+  appReady = false;
+  applyState(defaultState());
+  appReady = true;
+  markSaved(null, null);
+  showToast('เริ่มโปรเจกต์ใหม่');
+}
+
+$('#newBtn').addEventListener('click', doNew);
+$('#openBtn').addEventListener('click', doOpen);
+$('#saveAsBtn').addEventListener('click', doSaveAs);
+$('#saveOverwriteBtn').addEventListener('click', doSave);
+
+// Ctrl/Cmd + S = Save, Ctrl/Cmd + Shift + S = Save As, Ctrl/Cmd + O = Open
+document.addEventListener('keydown', (e)=>{
+  if (!(e.ctrlKey || e.metaKey)) return;
+  const k = e.key.toLowerCase();
+  if (k === 's'){ e.preventDefault(); e.shiftKey ? doSaveAs() : doSave(); }
+  else if (k === 'o'){ e.preventDefault(); doOpen(); }
+});
+
+// ดับเบิลคลิกไฟล์ .beam แล้วเปิดในแอปที่ติดตั้งไว้ (Chrome/Edge บน desktop)
+let launchedWithFile = false;
+if ('launchQueue' in window){
+  window.launchQueue.setConsumer(async (params)=>{
+    if (!params.files || !params.files.length) return;
+    launchedWithFile = true;
+    const handle = params.files[0];
+    const file = await handle.getFile();
+    await loadFromFile(file, handle);
+  });
+}
+
+/* ============== PWA: install + update ============== */
+let deferredInstall = null;
+const installBtn = $('#installBtn');
+window.addEventListener('beforeinstallprompt', (e)=>{
+  e.preventDefault();
+  deferredInstall = e;
+  installBtn.style.display = '';
+});
+installBtn.addEventListener('click', async ()=>{
+  if (!deferredInstall) return;
+  deferredInstall.prompt();
+  await deferredInstall.userChoice;
+  deferredInstall = null;
+  installBtn.style.display = 'none';
+});
+window.addEventListener('appinstalled', ()=>{
+  installBtn.style.display = 'none';
+  showToast('✓ ติดตั้ง Beam 2D แล้ว');
+});
+
+function askSwVersion(worker){
+  return new Promise((resolve)=>{
+    if (!worker) return resolve(null);
+    const ch = new MessageChannel();
+    ch.port1.onmessage = (ev)=> resolve(ev.data);
+    worker.postMessage('getVersion', [ch.port2]);
+    setTimeout(()=>resolve(null), 2000);
+  });
+}
+
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
+  window.addEventListener('load', async ()=>{
+    try {
+      const reg = await navigator.serviceWorker.register('./sw.js');
+      const updateBar = $('#updateBar');
+      const showUpdate = (worker)=>{
+        updateBar.hidden = false;
+        $('#updateBtn').onclick = ()=>{
+          writeAutosave();               // เก็บงานไว้ก่อนรีโหลด
+          updateRequested = true;
+          worker.postMessage('skipWaiting');
+        };
+      };
+      let updateRequested = false;
+      if (reg.waiting && navigator.serviceWorker.controller) showUpdate(reg.waiting);
+      reg.addEventListener('updatefound', ()=>{
+        const nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener('statechange', ()=>{
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) showUpdate(nw);
+        });
+      });
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+        // รีโหลดเฉพาะตอนผู้ใช้กด "อัปเดตเลย" (ไม่ใช่ตอนติดตั้ง SW ครั้งแรก)
+        if (refreshing || !updateRequested) return;
+        refreshing = true;
+        location.reload();
+      });
+      // เช็กอัปเดตเป็นระยะ และทุกครั้งที่กลับมาที่แอป
+      setInterval(()=>reg.update().catch(()=>{}), 60*60*1000);
+      document.addEventListener('visibilitychange', ()=>{
+        if (document.visibilityState === 'visible') reg.update().catch(()=>{});
+      });
+
+      const ready = await navigator.serviceWorker.ready;
+      const v = await askSwVersion(navigator.serviceWorker.controller || ready.active);
+      if (v) $('#appVersion').textContent = `Beam 2D v${v}`;
+    } catch(e){
+      console.warn('Service worker registration failed', e);
+    }
+  });
+}
+
+/* ============== INIT ============== */
+(function init(){
+  const saved = readAutosave();
+  if (saved && saved.state){
+    try {
+      applyState(saved.state);
+      currentName = saved.name || null;
+      dirty = !!saved.dirty;
+    } catch(e){
+      applyState(defaultState());
+    }
+  } else {
+    recompute();
+  }
+  appReady = true;
+  updateStatus();
+})();
+</script>
+</body>
+</html>
