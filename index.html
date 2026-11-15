@@ -5,7 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Beam 2D — คำนวณคาน</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#1A2332">
+<meta name="theme-color" content="#0D1116">
+<script>
+  /* ใส่ธีมก่อนหน้าเว็บแสดงผล กันหน้าจอกะพริบเป็นสีขาว */
+  (function(){ try { if (localStorage.getItem('beam2d:theme') === 'light') document.documentElement.setAttribute('data-theme','light'); } catch(e){} })();
+</script>
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -13,32 +17,61 @@
 <style>
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap');
 
+  /* ===== THEME: dark (ค่าเริ่มต้น) ===== */
   :root{
-    --paper:#FDFDFB;
-    --paper-line:#E4E0D6;
-    --ink:#1A2332;
-    --ink-soft:#4A5568;
+    --bg:#12161C;          --bg-grid:#1A2028;
+    --surface:#181D25;     --surface-2:#1D232C;
+    --text:#D5DBE3;        --text-soft:#8C97A6;
+    --border:#323B47;      --line:#252C36;
+    --head-bg:#0D1116;     --head-text:#C3CCD7;
+    --input-bg:#12161C;
+    --accent:#3F6B93;      --accent-text:#F2F6FA;
+    --steel:#7FA3C4;
+    --load:#E27C61;        --danger:#A84E3A;
+    --moment:#74B58A;      --moment-soft:#1E3427;  --moment-ink:#B3DBBF;
+    --shear:#AE91DC;       --shear-soft:#2B2440;   --shear-ink:#D5C3F1;
+    --struct:#AEB8C4;      --struct-fill:#181D25;
+    --beam-outline:#4D5B6D; --beam:#7FA3C4;
+    --tick:#3A4350;        --axis-text:#717C8B;    --dim-text:#9AA5B3;
+    --diag-grid:#222933;   --zero-line:#7D8896;
+    --off:#5B6470;
+    --shadow:rgba(0,0,0,0.35); --btn-shadow:#05070A;
+    --toast-bg:#2A323D;    --toast-text:#E6EBF1;
+    color-scheme: dark;
+  }
+  /* ===== THEME: light (แบบเดิม) ===== */
+  :root[data-theme="light"]{
+    --bg:#FDFDFB;          --bg-grid:#E4E0D6;
+    --surface:#FFFFFF;     --surface-2:#F7F6F1;
+    --text:#1A2332;        --text-soft:#4A5568;
+    --border:#1A2332;      --line:#E4E0D6;
+    --head-bg:#1A2332;     --head-text:#FDFDFB;
+    --input-bg:#FDFDFB;
+    --accent:#3B5B7A;      --accent-text:#FFFFFF;
     --steel:#3B5B7A;
-    --steel-light:#7A96AD;
-    --load:#C4432A;
-    --load-soft:#E8AA98;
-    --moment:#4A7A5C;
-    --moment-soft:#A9C7B3;
-    --shear:#8B5FBF;
-    --shear-soft:#C9AEE0;
-    --paper-shadow: rgba(26,35,50,0.08);
+    --load:#C4432A;        --danger:#C4432A;
+    --moment:#4A7A5C;      --moment-soft:#A9C7B3;  --moment-ink:#1F3D28;
+    --shear:#8B5FBF;       --shear-soft:#C9AEE0;   --shear-ink:#3D2A5C;
+    --struct:#1A2332;      --struct-fill:#FFFFFF;
+    --beam-outline:#1A2332; --beam:#3B5B7A;
+    --tick:#C7C2B4;        --axis-text:#8A8474;    --dim-text:#4A5568;
+    --diag-grid:#EDEAE0;   --zero-line:#1A2332;
+    --off:#9AA0A6;
+    --shadow:rgba(26,35,50,0.08); --btn-shadow:#1A2332;
+    --toast-bg:#1A2332;    --toast-text:#FDFDFB;
+    color-scheme: light;
   }
 
   *{box-sizing:border-box; margin:0; padding:0;}
 
   body{
     font-family:'Inter',sans-serif;
-    background:var(--paper);
+    background:var(--bg);
     background-image:
-      linear-gradient(var(--paper-line) 1px, transparent 1px),
-      linear-gradient(90deg, var(--paper-line) 1px, transparent 1px);
+      linear-gradient(var(--bg-grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px);
     background-size: 28px 28px;
-    color:var(--ink);
+    color:var(--text);
     min-height:100vh;
     padding: 24px 16px 60px;
   }
@@ -53,7 +86,7 @@
     gap:8px;
     margin-bottom:28px;
     padding-bottom:16px;
-    border-bottom:2px solid var(--ink);
+    border-bottom:2px solid var(--border);
   }
   header h1{
     font-size:1.5rem;
@@ -64,13 +97,13 @@
   header .tag{
     font-family:'JetBrains Mono',monospace;
     font-size:0.72rem;
-    color:var(--ink-soft);
+    color:var(--text-soft);
     text-transform:uppercase;
     letter-spacing:0.06em;
   }
   .header-actions{display:flex; flex-direction:column; align-items:flex-end; gap:4px;}
   .header-actions .btns{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;}
-  #saveStatus{font-family:'JetBrains Mono',monospace; font-size:0.68rem; color:var(--ink-soft); text-align:right;}
+  #saveStatus{font-family:'JetBrains Mono',monospace; font-size:0.68rem; color:var(--text-soft); text-align:right;}
   #saveStatus .dirty{color:var(--load); font-weight:700;}
 
   /* update banner */
@@ -78,18 +111,18 @@
     position:fixed; top:0; left:0; right:0; z-index:1000;
     display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap;
     padding:10px 16px;
-    background:var(--steel); color:#fff;
+    background:var(--accent); color:var(--accent-text);
     font-family:'JetBrains Mono',monospace; font-size:0.8rem;
-    box-shadow:0 2px 0 var(--ink);
+    box-shadow:0 2px 0 var(--btn-shadow);
   }
   #updateBar[hidden]{display:none;}
-  #updateBar button{background:#fff; color:var(--ink); border-color:#fff; padding:5px 12px;}
+  #updateBar button{background:var(--accent-text); color:#1A2332; border-color:var(--accent-text); padding:5px 12px;}
 
   .panel{
-    background:#fff;
-    border:1.5px solid var(--ink);
+    background:var(--surface);
+    border:1.5px solid var(--border);
     border-radius:4px;
-    box-shadow: 4px 4px 0 var(--paper-shadow);
+    box-shadow: 4px 4px 0 var(--shadow);
     margin-bottom:20px;
     overflow:hidden;
   }
@@ -98,8 +131,8 @@
     align-items:center;
     justify-content:space-between;
     padding:10px 16px;
-    background:var(--ink);
-    color:var(--paper);
+    background:var(--head-bg);
+    color:var(--head-text);
   }
   .panel-head h2{
     font-size:0.78rem;
@@ -116,7 +149,7 @@
     gap:10px;
     align-items:center;
     padding:14px 16px;
-    border-bottom:1px solid var(--paper-line);
+    border-bottom:1px solid var(--line);
   }
   .field{
     display:flex;
@@ -127,18 +160,18 @@
     font-size:0.68rem;
     text-transform:uppercase;
     letter-spacing:0.05em;
-    color:var(--ink-soft);
+    color:var(--text-soft);
     font-weight:600;
   }
   .field input, .field select{
     font-family:'JetBrains Mono',monospace;
     font-size:0.85rem;
     padding:6px 8px;
-    border:1.5px solid var(--ink);
+    border:1.5px solid var(--border);
     border-radius:3px;
     width:88px;
-    background:var(--paper);
-    color:var(--ink);
+    background:var(--input-bg);
+    color:var(--text);
   }
   .field select{width:auto; cursor:pointer;}
   .field input:focus, .field select:focus{outline:2px solid var(--steel); outline-offset:1px;}
@@ -148,17 +181,17 @@
     font-weight:600;
     font-size:0.82rem;
     padding:8px 14px;
-    border:1.5px solid var(--ink);
+    border:1.5px solid var(--border);
     border-radius:3px;
-    background:var(--paper);
-    color:var(--ink);
+    background:var(--surface-2);
+    color:var(--text);
     cursor:pointer;
     transition:transform 0.08s ease, box-shadow 0.08s ease;
   }
-  button:hover{box-shadow:2px 2px 0 var(--ink);}
+  button:hover{box-shadow:2px 2px 0 var(--btn-shadow);}
   button:active{transform:translate(2px,2px); box-shadow:none;}
-  button.primary{background:var(--steel); color:#fff; border-color:var(--steel);}
-  button.danger{background:var(--load); color:#fff; border-color:var(--load);}
+  button.primary{background:var(--accent); color:var(--accent-text); border-color:var(--accent);}
+  button.danger{background:var(--danger); color:#fff; border-color:var(--danger);}
   button:focus-visible{outline:2px solid var(--steel); outline-offset:2px;}
 
   .load-row{
@@ -169,18 +202,25 @@
     padding:8px 16px;
     font-family:'JetBrains Mono',monospace;
     font-size:0.78rem;
-    border-bottom:1px solid var(--paper-line);
+    border-bottom:1px solid var(--line);
   }
   .load-row:last-child{border-bottom:none;}
-  #supportList .load-row{background:#F7F6F1;}
+  #supportList .load-row{background:var(--surface-2);}
   #supportList .load-row select{
     font-family:'JetBrains Mono',monospace;
     font-size:0.78rem;
     padding:4px 6px;
-    border:1.5px solid var(--ink);
+    border:1.5px solid var(--border);
     border-radius:3px;
-    background:var(--paper);
+    background:var(--input-bg);
+    color:var(--text);
   }
+  .load-row input, .load-row select{
+    font-family:'JetBrains Mono',monospace; font-size:0.78rem;
+    padding:4px 6px; border:1.5px solid var(--border); border-radius:3px;
+    background:var(--input-bg); color:var(--text);
+  }
+  .load-row input:focus, .load-row select:focus{outline:2px solid var(--steel); outline-offset:1px;}
   .load-row .swatch{
     width:10px; height:10px; border-radius:2px; flex-shrink:0;
   }
@@ -208,7 +248,7 @@
     font-size:0.72rem;
     text-transform:uppercase;
     letter-spacing:0.06em;
-    color:var(--ink-soft);
+    color:var(--text-soft);
     margin-bottom:4px;
     padding-left:6px;
   }
@@ -217,18 +257,18 @@
 
   /* results table */
   table{width:100%; border-collapse:collapse; font-family:'JetBrains Mono',monospace; font-size:0.82rem;}
-  th, td{text-align:left; padding:7px 10px; border-bottom:1px solid var(--paper-line);}
-  th{color:var(--ink-soft); font-weight:600; text-transform:uppercase; font-size:0.68rem; letter-spacing:0.05em;}
+  th, td{text-align:left; padding:7px 10px; border-bottom:1px solid var(--line);}
+  th{color:var(--text-soft); font-weight:600; text-transform:uppercase; font-size:0.68rem; letter-spacing:0.05em;}
   td.num{text-align:right; font-weight:600;}
   tr:last-child td{border-bottom:none;}
 
   .hint{
     font-family:'JetBrains Mono',monospace;
     font-size:0.72rem;
-    color:var(--ink-soft);
+    color:var(--text-soft);
     padding:8px 16px;
-    background:var(--paper);
-    border-bottom:1px solid var(--paper-line);
+    background:var(--surface-2);
+    border-bottom:1px solid var(--line);
   }
 
   .max-badge{
@@ -239,14 +279,14 @@
     border-radius:10px;
     margin-left:6px;
   }
-  .max-badge.shear{background:var(--shear-soft); color:#3d2a5c;}
-  .max-badge.moment{background:var(--moment-soft); color:#1f3d28;}
+  .max-badge.shear{background:var(--shear-soft); color:var(--shear-ink);}
+  .max-badge.moment{background:var(--moment-soft); color:var(--moment-ink);}
 
   footer{
     text-align:center;
     font-family:'JetBrains Mono',monospace;
     font-size:0.68rem;
-    color:var(--ink-soft);
+    color:var(--text-soft);
     margin-top:24px;
   }
 
@@ -276,6 +316,7 @@
     <div class="tag">คานช่วงเดียว / ต่อเนื่อง / ยื่น · SFD · BMD</div>
     <div class="header-actions">
       <div class="btns">
+        <button id="themeBtn" title="สลับเป็นธีมสว่าง" aria-label="สลับธีม">☀️</button>
         <button id="newBtn" title="เริ่มโปรเจกต์ใหม่">🆕 ใหม่</button>
         <button id="openBtn" title="เปิดไฟล์ .beam (หรือไฟล์ .html ที่เซฟจากเวอร์ชันเก่า)">📂 เปิด</button>
         <button class="primary" id="saveAsBtn">💾 Save As</button>
@@ -287,7 +328,7 @@
   </header>
   <input type="file" id="fileInput" accept=".beam,.json,.html,application/json,text/html" hidden>
 
-  <div id="toast" style="position:fixed; bottom:20px; right:20px; background:var(--ink); color:var(--paper); padding:10px 16px; border-radius:4px; font-family:'JetBrains Mono',monospace; font-size:0.78rem; box-shadow:4px 4px 0 var(--paper-shadow); opacity:0; pointer-events:none; transition:opacity 0.25s ease; z-index:999;"></div>
+  <div id="toast" style="position:fixed; bottom:20px; right:20px; background:var(--toast-bg); color:var(--toast-text); padding:10px 16px; border-radius:4px; font-family:'JetBrains Mono',monospace; font-size:0.78rem; box-shadow:4px 4px 0 var(--shadow); opacity:0; pointer-events:none; transition:opacity 0.25s ease; z-index:999;"></div>
 
   <!-- BEAM SETUP -->
   <div class="panel">
@@ -308,7 +349,7 @@
       <svg id="beamStage" viewBox="0 0 900 220" preserveAspectRatio="xMidYMid meet"></svg>
     </div>
 
-    <div class="controls" style="border-bottom:none; border-top:1px solid var(--paper-line);">
+    <div class="controls" style="border-bottom:none; border-top:1px solid var(--line);">
       <button class="primary" id="addPoint">+ Point Load</button>
       <button class="primary" id="addUdl">+ UDL</button>
       <button class="primary" id="addMoment">+ Moment</button>
@@ -582,7 +623,9 @@ function solveReactions(){
       F[2*i] += -effMag(ld);
     } else if (ld.kind === 'moment'){
       const i = nodeIdx(clamp(ld.pos,0,L));
-      F[2*i+1] += effMag(ld);
+      // applied moment: positive = clockwise (matches drawing & BMD jump);
+      // FEM rotation DOF is counter-clockwise positive, hence the minus sign
+      F[2*i+1] += -effMag(ld);
     }
   });
 
@@ -739,21 +782,21 @@ function renderStage(){
   for (let i=0;i<=nTicks;i++){
     const xv = (L*i/nTicks);
     const px = xToSvg(xv);
-    el('line', {x1:px,y1:beamY-6,x2:px,y2:beamY+6,stroke:'#C7C2B4','stroke-width':1}, stage);
-    el('text', {x:px,y:beamY+34,'text-anchor':'middle','font-size':'11','font-family':'JetBrains Mono, monospace',fill:'#8A8474'}, stage).textContent = xv.toFixed(1);
+    el('line', {x1:px,y1:beamY-6,x2:px,y2:beamY+6,stroke:'var(--tick)','stroke-width':1}, stage);
+    el('text', {x:px,y:beamY+34,'text-anchor':'middle','font-size':'11','font-family':'JetBrains Mono, monospace',fill:'var(--axis-text)'}, stage).textContent = xv.toFixed(1);
   }
 
-  el('line', {x1:x0,y1:beamY,x2:x1,y2:beamY,stroke:'var(--ink)','stroke-width':6,'stroke-linecap':'round'}, stage);
+  el('line', {x1:x0,y1:beamY,x2:x1,y2:beamY,stroke:'var(--beam-outline)','stroke-width':6,'stroke-linecap':'round'}, stage);
   const beamOverlay = el('line', {x1:x0,y1:beamY,x2:x1,y2:beamY,'stroke-width':3,'stroke-linecap':'round'}, stage);
-  beamOverlay.setAttribute('stroke', '#3B5B7A');
+  beamOverlay.setAttribute('stroke', 'var(--beam)');
 
   state.supports.forEach(s=> drawSupport(s.key, s, beamY));
   state.loads.forEach(ld=>drawLoad(ld, beamY));
 
-  el('line', {x1:x0,y1:beamY+50,x2:x1,y2:beamY+50,stroke:'#8A8474','stroke-width':1}, stage);
-  el('line', {x1:x0,y1:beamY+45,x2:x0,y2:beamY+55,stroke:'#8A8474','stroke-width':1}, stage);
-  el('line', {x1:x1,y1:beamY+45,x2:x1,y2:beamY+55,stroke:'#8A8474','stroke-width':1}, stage);
-  const dimLabel = el('text', {x:(x0+x1)/2, y:beamY+70, 'text-anchor':'middle','font-size':'12','font-family':'JetBrains Mono, monospace', fill:'#4A5568','font-weight':'600'}, stage);
+  el('line', {x1:x0,y1:beamY+50,x2:x1,y2:beamY+50,stroke:'var(--axis-text)','stroke-width':1}, stage);
+  el('line', {x1:x0,y1:beamY+45,x2:x0,y2:beamY+55,stroke:'var(--axis-text)','stroke-width':1}, stage);
+  el('line', {x1:x1,y1:beamY+45,x2:x1,y2:beamY+55,stroke:'var(--axis-text)','stroke-width':1}, stage);
+  const dimLabel = el('text', {x:(x0+x1)/2, y:beamY+70, 'text-anchor':'middle','font-size':'12','font-family':'JetBrains Mono, monospace', fill:'var(--dim-text)','font-weight':'600'}, stage);
   dimLabel.textContent = `L = ${L.toFixed(2)} m`;
 }
 
@@ -763,35 +806,35 @@ function drawSupport(key, sup, beamY){
   const g = el('g', {class:'support-drag', 'data-support-id':sup.id, style:'cursor:grab'}, stage);
 
   if (sup.type === 'fixed'){
-    el('line', {x1:px, y1:beamY-24, x2:px, y2:beamY+24, stroke:'#1A2332','stroke-width':4}, g);
+    el('line', {x1:px, y1:beamY-24, x2:px, y2:beamY+24, stroke:'var(--struct)','stroke-width':4}, g);
     for (let i=-24;i<=24;i+=8){
-      el('line', {x1:px, y1:beamY+i, x2:px-8, y2:beamY+i+8, stroke:'#1A2332','stroke-width':2}, g);
+      el('line', {x1:px, y1:beamY+i, x2:px-8, y2:beamY+i+8, stroke:'var(--struct)','stroke-width':2}, g);
     }
   } else if (sup.type === 'pin'){
     const s=13;
-    el('polygon', {points:`${px},${beamY} ${px-s},${beamY+22} ${px+s},${beamY+22}`, fill:'#fff', stroke:'#1A2332','stroke-width':2.5}, g);
+    el('polygon', {points:`${px},${beamY} ${px-s},${beamY+22} ${px+s},${beamY+22}`, fill:'var(--struct-fill)', stroke:'var(--struct)','stroke-width':2.5}, g);
     hatch(g, px-s, px+s, beamY+22);
   } else if (sup.type === 'roller'){
     const s=13;
-    el('polygon', {points:`${px},${beamY} ${px-s},${beamY+20} ${px+s},${beamY+20}`, fill:'#fff', stroke:'#1A2332','stroke-width':2.5}, g);
-    el('circle', {cx:px-7, cy:beamY+25, r:4, fill:'#fff', stroke:'#1A2332','stroke-width':2}, g);
-    el('circle', {cx:px+7, cy:beamY+25, r:4, fill:'#fff', stroke:'#1A2332','stroke-width':2}, g);
+    el('polygon', {points:`${px},${beamY} ${px-s},${beamY+20} ${px+s},${beamY+20}`, fill:'var(--struct-fill)', stroke:'var(--struct)','stroke-width':2.5}, g);
+    el('circle', {cx:px-7, cy:beamY+25, r:4, fill:'var(--struct-fill)', stroke:'var(--struct)','stroke-width':2}, g);
+    el('circle', {cx:px+7, cy:beamY+25, r:4, fill:'var(--struct-fill)', stroke:'var(--struct)','stroke-width':2}, g);
     hatch(g, px-s, px+s, beamY+29);
   }
-  el('text', {x:px, y:beamY+46, 'text-anchor':'middle','font-size':'11','font-family':'JetBrains Mono, monospace','font-weight':'700', fill:'#3B5B7A'}, g).textContent = key;
+  el('text', {x:px, y:beamY+46, 'text-anchor':'middle','font-size':'11','font-family':'JetBrains Mono, monospace','font-weight':'700', fill:'var(--steel)'}, g).textContent = key;
 
   el('rect', {x:px-20,y:beamY-10,width:40,height:50, fill:'transparent'}, g);
 }
 function hatch(g, xA, xB, y){
-  el('line', {x1:xA-4,y1:y,x2:xB+4,y2:y, stroke:'#1A2332','stroke-width':2}, g);
+  el('line', {x1:xA-4,y1:y,x2:xB+4,y2:y, stroke:'var(--struct)','stroke-width':2}, g);
   for (let x=xA;x<=xB;x+=6){
-    el('line', {x1:x,y1:y,x2:x-5,y2:y+7, stroke:'#1A2332','stroke-width':1.5}, g);
+    el('line', {x1:x,y1:y,x2:x-5,y2:y+7, stroke:'var(--struct)','stroke-width':1.5}, g);
   }
 }
 
 function drawLoad(ld, beamY){
   const isOff = ld.active === false;
-  const color = isOff ? '#9AA0A6' : (ld.kind === 'moment' ? '#8B5FBF' : '#C4432A');
+  const color = isOff ? 'var(--off)' : (ld.kind === 'moment' ? 'var(--shear)' : 'var(--load)');
   const groupOpacity = isOff ? '0.4' : '1';
   if (ld.kind === 'point'){
     const px = xToSvg(clamp(ld.pos,0,state.L));
@@ -873,10 +916,10 @@ function renderDiagram(svg, xs, ys, color, unit){
   for (let i=0;i<=nTicks;i++){
     const xv = L*i/nTicks;
     const px = xScale(xv);
-    el('line', {x1:px,y1:marginTop,x2:px,y2:H-marginBottom, stroke:'#EDEAE0','stroke-width':1}, svg);
-    el('text', {x:px,y:H-marginBottom+16,'text-anchor':'middle','font-size':'9','font-family':'JetBrains Mono, monospace',fill:'#8A8474'}, svg).textContent = xv.toFixed(1);
+    el('line', {x1:px,y1:marginTop,x2:px,y2:H-marginBottom, stroke:'var(--diag-grid)','stroke-width':1}, svg);
+    el('text', {x:px,y:H-marginBottom+16,'text-anchor':'middle','font-size':'9','font-family':'JetBrains Mono, monospace',fill:'var(--axis-text)'}, svg).textContent = xv.toFixed(1);
   }
-  el('line', {x1:marginX,y1:midY,x2:W-marginX,y2:midY, stroke:'#1A2332','stroke-width':1.5}, svg);
+  el('line', {x1:marginX,y1:midY,x2:W-marginX,y2:midY, stroke:'var(--zero-line)','stroke-width':1.5}, svg);
 
   let d = `M ${xScale(xs[0])} ${yScale(ys[0])}`;
   for (let i=1;i<xs.length;i++){
@@ -897,7 +940,7 @@ function renderDiagram(svg, xs, ys, color, unit){
     txt.textContent = `${v.toFixed(2)}`;
   });
 
-  el('text', {x:12, y:14, 'font-size':'10','font-family':'JetBrains Mono, monospace', fill:'#8A8474'}, svg).textContent = unit;
+  el('text', {x:12, y:14, 'font-size':'10','font-family':'JetBrains Mono, monospace', fill:'var(--axis-text)'}, svg).textContent = unit;
 }
 
 /* ============== MAIN RECOMPUTE ============== */
@@ -912,8 +955,8 @@ function recompute(){
 
   if (reactionResult.valid){
     const diag = computeDiagrams(reactionResult);
-    renderDiagram(sfdSvg, diag.xs, diag.V, '#8B5FBF', 'V (t)');
-    renderDiagram(bmdSvg, diag.xs, diag.M, '#4A7A5C', 'M (t·m)');
+    renderDiagram(sfdSvg, diag.xs, diag.V, 'var(--shear)', 'V (t)');
+    renderDiagram(bmdSvg, diag.xs, diag.M, 'var(--moment)', 'M (t·m)');
     const maxV = Math.max(...diag.V.map(Math.abs));
     const maxM = Math.max(...diag.M.map(Math.abs));
     const vLabel = state.combo.enabled ? 'Vu' : 'V';
@@ -1489,6 +1532,23 @@ if ('launchQueue' in window){
     await loadFromFile(file, handle);
   });
 }
+
+/* ============== THEME (มืด / สว่าง) ============== */
+const themeBtn = $('#themeBtn');
+const themeMeta = document.querySelector('meta[name="theme-color"]');
+function applyTheme(t){
+  if (t === 'light') document.documentElement.setAttribute('data-theme','light');
+  else document.documentElement.removeAttribute('data-theme');
+  themeBtn.textContent = t === 'light' ? '🌙' : '☀️';
+  themeBtn.title = t === 'light' ? 'สลับเป็นธีมมืด' : 'สลับเป็นธีมสว่าง';
+  themeMeta.setAttribute('content', t === 'light' ? '#1A2332' : '#0D1116');
+}
+applyTheme(document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark');
+themeBtn.addEventListener('click', ()=>{
+  const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+  applyTheme(next);
+  try { localStorage.setItem('beam2d:theme', next); } catch(e){}
+});
 
 /* ============== PWA: install + update ============== */
 let deferredInstall = null;
