@@ -374,34 +374,6 @@
 
   <div id="toast" style="position:fixed; bottom:20px; right:20px; background:var(--toast-bg); color:var(--toast-text); padding:10px 16px; border-radius:4px; font-family:'JetBrains Mono',monospace; font-size:0.78rem; box-shadow:4px 4px 0 var(--shadow); opacity:0; pointer-events:none; transition:opacity 0.25s ease; z-index:999;"></div>
 
-  <!-- BEAM SETUP -->
-  <div class="panel">
-    <div class="panel-head"><h2>ตั้งค่าคาน</h2></div>
-    <div class="controls">
-      <div class="field">
-        <label>ความยาวคาน L (m)</label>
-        <input type="text" inputmode="decimal" id="beamLength" value="6" min="0.5" step="0.1">
-      </div>
-    </div>
-    <div class="controls" style="border-bottom:none;">
-      <button class="primary" id="addSupport">+ Support</button>
-    </div>
-    <div id="supportList"></div>
-    <div class="hint">ลากจุดบนคานเพื่อย้ายตำแหน่ง support/แรงได้ทันที — รองรับ support ได้หลายจุด (คานต่อเนื่อง)</div>
-
-    <div class="stage-wrap">
-      <svg id="beamStage" viewBox="0 0 900 220" preserveAspectRatio="xMidYMid meet"></svg>
-    </div>
-
-    <div class="controls" style="border-bottom:none; border-top:1px solid var(--line);">
-      <button class="primary" id="addPoint">+ Point Load</button>
-      <button class="primary" id="addUdl">+ UDL</button>
-      <button class="primary" id="addTri" title="แรงกระจายเชิงเส้น w₁ → w₂ (ใส่ 0 ด้านหนึ่ง = สามเหลี่ยม)">+ Triangle</button>
-      <button class="primary" id="addMoment">+ Moment</button>
-    </div>
-    <div id="loadList"></div>
-  </div>
-
   <!-- SECTION & MATERIAL -->
   <div class="panel">
     <div class="panel-head"><h2>หน้าตัดและวัสดุ (ใช้คำนวณน้ำหนักคานและการโก่งตัว)</h2></div>
@@ -435,6 +407,34 @@
       <table id="secProps"><tbody></tbody></table>
     </div>
     <div class="hint" id="secHint"></div>
+  </div>
+
+  <!-- BEAM SETUP -->
+  <div class="panel">
+    <div class="panel-head"><h2>ตั้งค่าคาน</h2></div>
+    <div class="controls">
+      <div class="field">
+        <label>ความยาวคาน L (m)</label>
+        <input type="text" inputmode="decimal" id="beamLength" value="6" min="0.5" step="0.1">
+      </div>
+    </div>
+    <div class="controls" style="border-bottom:none;">
+      <button class="primary" id="addSupport">+ Support</button>
+    </div>
+    <div id="supportList"></div>
+    <div class="hint">ลากจุดบนคานเพื่อย้ายตำแหน่ง support/แรงได้ทันที — รองรับ support ได้หลายจุด (คานต่อเนื่อง)</div>
+
+    <div class="stage-wrap">
+      <svg id="beamStage" viewBox="0 0 900 220" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+
+    <div class="controls" style="border-bottom:none; border-top:1px solid var(--line);">
+      <button class="primary" id="addPoint">+ Point Load</button>
+      <button class="primary" id="addUdl">+ UDL</button>
+      <button class="primary" id="addTri" title="แรงกระจายเชิงเส้น w₁ → w₂ (ใส่ 0 ด้านหนึ่ง = สามเหลี่ยม)">+ Triangle</button>
+      <button class="primary" id="addMoment">+ Moment</button>
+    </div>
+    <div id="loadList"></div>
   </div>
 
   <!-- LOAD COMBINATION -->
