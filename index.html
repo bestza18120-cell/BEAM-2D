@@ -19,7 +19,7 @@
 
   /* ===== THEME: dark (ค่าเริ่มต้น) ===== */
   :root{
-    --bg:#12161C;          --bg-grid:#1A2028;
+    --bg:#0E1217;          --bg-grid:#1A2028;
     --surface:#181D25;     --surface-2:#1D232C;
     --text:#D5DBE3;        --text-soft:#8C97A6;
     --border:#323B47;      --line:#252C36;
@@ -37,6 +37,8 @@
     --off:#5B6470;
     --shadow:rgba(0,0,0,0.35); --btn-shadow:#05070A;
     --toast-bg:#2A323D;    --toast-text:#E6EBF1;
+    --panel-border:#2A323D;
+    --panel-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 2px 4px rgba(0,0,0,0.35), 0 10px 28px rgba(0,0,0,0.45);
     color-scheme: dark;
   }
   /* ===== THEME: light (แบบเดิม) ===== */
@@ -59,6 +61,8 @@
     --off:#9AA0A6;
     --shadow:rgba(26,35,50,0.08); --btn-shadow:#1A2332;
     --toast-bg:#1A2332;    --toast-text:#FDFDFB;
+    --panel-border:#D6D2C8;
+    --panel-shadow: 0 1px 3px rgba(26,35,50,0.08), 0 8px 22px rgba(26,35,50,0.10);
     color-scheme: light;
   }
 
@@ -67,10 +71,6 @@
   body{
     font-family:'Inter',sans-serif;
     background:var(--bg);
-    background-image:
-      linear-gradient(var(--bg-grid) 1px, transparent 1px),
-      linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px);
-    background-size: 28px 28px;
     color:var(--text);
     min-height:100vh;
     padding: 24px 16px 60px;
@@ -120,10 +120,10 @@
 
   .panel{
     background:var(--surface);
-    border:1.5px solid var(--border);
-    border-radius:4px;
-    box-shadow: 4px 4px 0 var(--shadow);
-    margin-bottom:20px;
+    border:1px solid var(--panel-border);
+    border-radius:10px;
+    box-shadow: var(--panel-shadow);
+    margin-bottom:24px;
     overflow:hidden;
   }
   .panel-head{
