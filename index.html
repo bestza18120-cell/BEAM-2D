@@ -467,7 +467,7 @@
     <div class="panel-head"><h2>Reactions</h2></div>
     <div class="controls">
       <div class="field">
-        <label>Combination ของ Reactions และค่าที่จุด Support</label>
+        <label>Combination ของ Reactions</label>
         <select id="showComboSel" class="wide"></select>
       </div>
       <div id="showComboFormula" class="combo-formula"></div>
@@ -475,15 +475,6 @@
     <div class="hint" id="comboWarn" hidden></div>
     <div class="panel-body" style="padding-top:8px; padding-bottom:8px;">
       <table id="reactionTable"><tbody></tbody></table>
-    </div>
-  </div>
-
-  <!-- SHEAR & MOMENT AT SUPPORTS -->
-  <div class="panel">
-    <div class="panel-head"><h2>Shear &amp; Moment ที่จุด Support</h2></div>
-    <div class="panel-body" style="padding-top:8px; padding-bottom:8px;">
-      <table id="supportValuesTable"><tbody></tbody></table>
-      <div class="hint" style="padding:8px 0 0; border:none;">V ซ้าย/ขวา คือค่า shear ที่จุดนั้นก่อนและหลังแรงกระทำ (มีค่ากระโดดที่ support) · R = จาก jump คือ V ขวา − V ซ้าย (ควรตรงกับค่าในตาราง Reactions ด้านบน) · M คือ bending moment ที่จุดนั้น</div>
     </div>
   </div>
 
@@ -762,7 +753,6 @@ const stage = $('#beamStage');
 const sfdSvg = $('#sfdSvg');
 const bmdSvg = $('#bmdSvg');
 const reactionTable = $('#reactionTable tbody');
-const supportValuesTable = $('#supportValuesTable tbody');
 
 /* ============== GEOMETRY HELPERS ============== */
 const STAGE_W = 900, STAGE_H = 220;
@@ -1420,7 +1410,6 @@ function recompute(){
   $('#momentComboFormula').textContent = '= ' + comboFormula(momentK);
   $('#deflComboFormula').textContent = '= ' + comboFormula(deflK);
   renderReactionTable(reactionResult);
-  renderSupportValuesTable(reactionResult);
 
   if (reactionResult.valid){
     const dV = computeDiagrams(resV), dM = computeDiagrams(resM);
@@ -1471,41 +1460,6 @@ function renderReactionTable(result){
 }
 function supportLabel(t){
   return {pin:'Pin', roller:'Roller', fixed:'Fixed', none:'—'}[t] || t;
-}
-
-function renderSupportValuesTable(result){
-  supportValuesTable.innerHTML = '';
-  if (!result.valid){
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td colspan="5" style="color:var(--load); font-weight:600;">⚠ ${result.message}</td>`;
-    supportValuesTable.appendChild(tr);
-    return;
-  }
-  const L = state.L;
-  const eps = Math.max(L*0.0005, 1e-4);
-  const vLabel = 'V';
-  const mLabel = 'M';
-  const rLabel = 'R';
-  const headerRow = document.createElement('tr');
-  headerRow.innerHTML = `<th>Support</th><th>${vLabel} ซ้าย (t)</th><th>${vLabel} ขวา (t)</th><th>${rLabel} = จาก jump (t)</th><th>${mLabel} (t·m)</th>`;
-  supportValuesTable.appendChild(headerRow);
-
-  getActiveSupports().forEach(s=>{
-    const atLeftEnd = s.pos <= eps;
-    const atRightEnd = s.pos >= L - eps;
-    const vLeftNum = atLeftEnd ? 0 : shearAt(clamp(s.pos-eps,0,L), result);
-    const vRightNum = atRightEnd ? 0 : shearAt(clamp(s.pos+eps,0,L), result);
-    const vLeft = atLeftEnd ? '—' : fmt(vLeftNum);
-    const vRight = atRightEnd ? '—' : fmt(vRightNum);
-    const rJump = fmt(vRightNum - vLeftNum);
-    // at a fixed support on the right end, report the beam moment just left of the support
-    // (momentAt(L) already includes the reaction couple and closes to zero)
-    const rr = result.reactions[s.key];
-    const m = fmt(momentAt(s.pos, result) - (atRightEnd && rr && rr.M ? rr.M : 0));
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${s.key} (${supportLabel(s.type)})</td><td class="num">${vLeft}</td><td class="num">${vRight}</td><td class="num">${rJump}</td><td class="num">${m}</td>`;
-    supportValuesTable.appendChild(tr);
-  });
 }
 
 function renderSupportList(){
