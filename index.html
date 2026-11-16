@@ -459,7 +459,7 @@
     <div class="controls" style="border-bottom:none;">
       <button class="primary" id="addCombo">+ Combination</button>
     </div>
-    <div class="hint">1) ตั้งชื่อ load case เอง (เช่น DL, SDL1, SDL2, LL) แล้วเลือก case ให้แต่ละแรงที่ dropdown ในรายการแรง · 2) ใส่ factor ของแต่ละ case ในแต่ละ combination (ช่องว่าง/0 = ไม่รวม case นั้น) · 3) เลือก combination ที่จะแสดงผลได้ที่หน้าต่าง Reactions และ Deflection</div>
+    <div class="hint">1) ตั้งชื่อ load case เอง (เช่น DL, SDL1, SDL2, LL) แล้วเลือก case ให้แต่ละแรงที่ dropdown ในรายการแรง · 2) ใส่ factor ของแต่ละ case ในแต่ละ combination (ช่องว่าง/0 = ไม่รวม case นั้น) · 3) เลือก combination แยกกันได้ในแต่ละหน้าต่างผล — Reactions, SFD, BMD และ Deflection</div>
   </div>
 
   <!-- REACTIONS -->
@@ -467,7 +467,7 @@
     <div class="panel-head"><h2>Reactions</h2></div>
     <div class="controls">
       <div class="field">
-        <label>แสดง Reactions / Shear / Moment จาก combination</label>
+        <label>Combination ของ Reactions และค่าที่จุด Support</label>
         <select id="showComboSel" class="wide"></select>
       </div>
       <div id="showComboFormula" class="combo-formula"></div>
@@ -490,6 +490,13 @@
   <!-- SFD -->
   <div class="panel">
     <div class="panel-head"><h2>Shear Force Diagram (SFD) <span id="maxShear" class="max-badge shear"></span></h2></div>
+    <div class="controls">
+      <div class="field">
+        <label>Combination ที่ใช้ดู Shear</label>
+        <select id="shearComboSel" class="wide"></select>
+      </div>
+      <div id="shearComboFormula" class="combo-formula"></div>
+    </div>
     <div class="panel-body">
       <div class="diagram-wrap">
         <svg id="sfdSvg" viewBox="0 0 900 200" preserveAspectRatio="xMidYMid meet" style="width:100%; height:auto;"></svg>
@@ -501,6 +508,13 @@
   <!-- BMD -->
   <div class="panel">
     <div class="panel-head"><h2>Bending Moment Diagram (BMD) <span id="maxMoment" class="max-badge moment"></span></h2></div>
+    <div class="controls">
+      <div class="field">
+        <label>Combination ที่ใช้ดู Moment</label>
+        <select id="momentComboSel" class="wide"></select>
+      </div>
+      <div id="momentComboFormula" class="combo-formula"></div>
+    </div>
     <div class="panel-body">
       <div class="diagram-wrap">
         <svg id="bmdSvg" viewBox="0 0 900 200" preserveAspectRatio="xMidYMid meet" style="width:100%; height:auto;"></svg>
@@ -516,6 +530,7 @@
         <label>Combination ที่ใช้ดูการโก่งตัว</label>
         <select id="deflComboSel" class="wide"></select>
       </div>
+      <div id="deflComboFormula" class="combo-formula"></div>
       <div class="field">
         <label>เกณฑ์ยอมให้ <span class="nt">δ</span> ≤ L / n</label>
         <select id="deflLimitSel">
@@ -719,6 +734,8 @@ function defaultState(){
     loadCases: defaultCases(),
     combos: defaultCombos(),
     showCombo: 'k1',
+    shearCombo: 'k1',
+    momentCombo: 'k1',
     deflCombo: 'k1'
   };
 }
@@ -823,6 +840,9 @@ function ensureLoadSystem(s){
     for (const id in k.factors) if (!ids.has(id)) delete k.factors[id];
   });
   if (!s.combos.some(k=>k.id===s.showCombo)) s.showCombo = s.combos[0].id;
+  // older files had one combination for reactions + shear + moment
+  if (!s.combos.some(k=>k.id===s.shearCombo)) s.shearCombo = s.showCombo;
+  if (!s.combos.some(k=>k.id===s.momentCombo)) s.momentCombo = s.showCombo;
   if (!s.combos.some(k=>k.id===s.deflCombo)) s.deflCombo = s.combos[0].id;
   if (s.section && !ids.has(s.section.swCase)) s.section.swCase = ids.has('DL') ? 'DL' : s.loadCases[0].id;
   return s;
@@ -934,7 +954,7 @@ function gaussSolve(A, b){
 
 function solveReactions(){
   const supports = getActiveSupports();
-  const result = { reactions: {}, valid:true, message:'' };
+  const result = { reactions: {}, valid:true, message:'', combo: activeCombo };
   const L = state.L;
 
   if (supports.length === 0){
@@ -1068,7 +1088,19 @@ function solveReactions(){
   return result;
 }
 
+// evaluate fn with the factors of the combination that produced reactionResult
+function withResultCombo(reactionResult, fn){
+  const prev = activeCombo;
+  if (reactionResult && reactionResult.combo) activeCombo = reactionResult.combo;
+  try { return fn(); } finally { activeCombo = prev; }
+}
 function shearAt(x, reactionResult){
+  return withResultCombo(reactionResult, ()=> shearAtRaw(x, reactionResult));
+}
+function momentAt(x, reactionResult){
+  return withResultCombo(reactionResult, ()=> momentAtRaw(x, reactionResult));
+}
+function shearAtRaw(x, reactionResult){
   const supports = getActiveSupports();
   let V = 0;
   for (const s of supports){
@@ -1087,7 +1119,7 @@ function shearAt(x, reactionResult){
   return V;
 }
 
-function momentAt(x, reactionResult){
+function momentAtRaw(x, reactionResult){
   const supports = getActiveSupports();
   let M = 0;
   for (const s of supports){
@@ -1369,29 +1401,37 @@ function recompute(){
 
   const sp = sectionProps();
   buildCalcLoads(sp);
-  const showK = comboById(state.showCombo), deflK = comboById(state.deflCombo);
-  activeCombo = showK;
-  const reactionResult = solveReactions();
+  const showK = comboById(state.showCombo), shearK = comboById(state.shearCombo),
+        momentK = comboById(state.momentCombo), deflK = comboById(state.deflCombo);
+  // solve once per distinct combination (each result remembers its combination)
+  const solved = new Map();
+  const solveFor = (k)=>{
+    if (!solved.has(k.id)){
+      activeCombo = k;
+      try { solved.set(k.id, solveReactions()); } finally { activeCombo = showK; }
+    }
+    return solved.get(k.id);
+  };
+  const reactionResult = solveFor(showK);
+  const resV = solveFor(shearK), resM = solveFor(momentK), resD = solveFor(deflK);
+  activeCombo = showK; // beam drawing labels follow the Reactions combination
   renderComboStatus(showK);
+  $('#shearComboFormula').textContent = '= ' + comboFormula(shearK);
+  $('#momentComboFormula').textContent = '= ' + comboFormula(momentK);
+  $('#deflComboFormula').textContent = '= ' + comboFormula(deflK);
   renderReactionTable(reactionResult);
   renderSupportValuesTable(reactionResult);
 
   if (reactionResult.valid){
-    const diag = computeDiagrams(reactionResult);
-    renderDiagram(sfdSvg, diag.xs, diag.V, 'var(--shear)', 'V (t)');
-    renderDiagram(bmdSvg, diag.xs, diag.M, 'var(--moment)', 'M (t·m)');
-    const maxV = Math.max(...diag.V.map(Math.abs));
-    const maxM = Math.max(...diag.M.map(Math.abs));
-    $('#maxShear').textContent = `max |V| = ${maxV.toFixed(2)} t · ${showK.name}`;
-    $('#maxMoment').textContent = `max |M| = ${maxM.toFixed(2)} t·m · ${showK.name}`;
+    const dV = computeDiagrams(resV), dM = computeDiagrams(resM);
+    renderDiagram(sfdSvg, dV.xs, dV.V, 'var(--shear)', 'V (t)');
+    renderDiagram(bmdSvg, dM.xs, dM.M, 'var(--moment)', 'M (t·m)');
+    const maxV = Math.max(...dV.V.map(Math.abs));
+    const maxM = Math.max(...dM.M.map(Math.abs));
+    $('#maxShear').textContent = `max |V| = ${maxV.toFixed(2)} t · ${shearK.name}`;
+    $('#maxMoment').textContent = `max |M| = ${maxM.toFixed(2)} t·m · ${momentK.name}`;
     renderSectionProps(sp, maxM);
-    // deflection uses its own combination (usually a service combination)
-    let dres = reactionResult;
-    if (deflK !== showK){
-      activeCombo = deflK;
-      try { dres = solveReactions(); } finally { activeCombo = showK; }
-    }
-    renderDeflection(dres, sp, null, deflK);
+    renderDeflection(resD, sp, null, deflK);
   } else {
     sfdSvg.innerHTML = '';
     bmdSvg.innerHTML = '';
@@ -1404,7 +1444,7 @@ function recompute(){
   renderStage();
   renderLoadList();
   renderSupportList();
-  lastCalc = reactionResult.valid ? { R: reactionResult } : null;
+  lastCalc = reactionResult.valid ? { V: resV, M: resM } : null;
   drawCursor();
   onStateChanged();
 }
@@ -1681,7 +1721,7 @@ function renderSectionProps(sp, maxM){
     row('น้ำหนักคาน (A×γ)', `${fmtSig(sp.weight)} kg/m = ${(sp.weight/1000).toFixed(3)} t/m${state.section.selfWeight ? '' : ' (ไม่รวม)'}`);
     if (isFinite(maxM) && sp.S > 0){
       const fb = maxM*1e8/sp.S; // ksc  (t·m → kg·cm = ×1e5 ; mm³ → cm³ = ÷1e3)
-      const lbl = `fb = Mmax / S (${comboById(state.showCombo).name})`;
+      const lbl = `fb = Mmax / S (${comboById(state.momentCombo).name})`;
       row(lbl, `${fmtSig(fb)} ksc`);
       if (sp.fy > 0) row('fb / fy', `${(fb/sp.fy).toFixed(2)}`);
     }
@@ -1792,7 +1832,7 @@ function renderDeflection(res, sp, invalidMsg, combo){
 
 /* ============== READ-OUT CURSOR (hover / drag on SFD · BMD · Deflection) ============== */
 let cursorX = null;      // m, or null when hidden
-let lastCalc = null;     // { R } from the last valid recompute
+let lastCalc = null;     // { V, M } results (own combinations) from the last valid recompute
 let lastDefl = null;     // { res, sp } service-load FEM result for deflection
 const cursorSvgs = [sfdSvg, bmdSvg, deflSvg];
 
@@ -1837,17 +1877,19 @@ function drawCursor(){
   stage.querySelectorAll('.cursor').forEach(n=>n.remove());
   if (cursorX === null || !lastCalc){ readoutEl.hidden = true; return; }
   const x = clamp(cursorX, 0, state.L);
-  const R = lastCalc.R;
+  const vx = shearAt(x, lastCalc.V), mx = momentAt(x, lastCalc.M);
   const u = '';
   const xs = `x=${x.toFixed(2)} m`;
-  drawCursorOn(sfdSvg, x, shearAt(x, R), `${xs}  V${u}=${fmt(shearAt(x, R))} t`);
-  drawCursorOn(bmdSvg, x, momentAt(x, R), `${xs}  M${u}=${fmt(momentAt(x, R))} t·m`);
+  const kn = (r)=> r.combo ? ` (${r.combo.name})` : '';
+  drawCursorOn(sfdSvg, x, vx, `${xs}  V${u}=${fmt(vx)} t`);
+  drawCursorOn(bmdSvg, x, mx, `${xs}  M${u}=${fmt(mx)} t·m`);
   const dv = deflAt(x);
   if (dv !== null) drawCursorOn(deflSvg, x, dv, `${xs}  δ=${dv.toFixed(2)} mm`);
-  readoutEl.innerHTML = `<span style="opacity:.7">${escHtml(comboById(state.showCombo).name)}</span><span>x = <b>${x.toFixed(2)}</b> m</span>`
-    + `<span class="ro-v">V${u} = <b>${fmt(shearAt(x, R))}</b> t</span>`
-    + `<span class="ro-m">M${u} = <b>${fmt(momentAt(x, R))}</b> t·m</span>`
-    + (dv !== null ? `<span class="ro-d">δ = <b>${dv.toFixed(2)}</b> mm</span>` : '')
+  const dk = lastDefl && lastDefl.res.combo ? ` (${lastDefl.res.combo.name})` : '';
+  readoutEl.innerHTML = `<span>x = <b>${x.toFixed(2)}</b> m</span>`
+    + `<span class="ro-v">V${u} = <b>${fmt(vx)}</b> t<span style="opacity:.6">${escHtml(kn(lastCalc.V))}</span></span>`
+    + `<span class="ro-m">M${u} = <b>${fmt(mx)}</b> t·m<span style="opacity:.6">${escHtml(kn(lastCalc.M))}</span></span>`
+    + (dv !== null ? `<span class="ro-d">δ = <b>${dv.toFixed(2)}</b> mm<span style="opacity:.6">${escHtml(dk)}</span></span>` : '')
     + `<button id="readoutClose" aria-label="ปิดแถบค่า">✕</button>`;
   readoutEl.hidden = false;
   $('#readoutClose').onclick = ()=>{ cursorX = null; drawCursor(); };
@@ -1877,10 +1919,13 @@ function defaultCaseId(){
 }
 const caseListEl = $('#caseList'), comboTableEl = $('#comboTable');
 const showComboSel = $('#showComboSel'), deflComboSel = $('#deflComboSel');
+const shearComboSel = $('#shearComboSel'), momentComboSel = $('#momentComboSel');
 
 function renderComboSelectors(){
   const opts = state.combos.map(k=>`<option value="${k.id}">${escHtml(k.name)}</option>`).join('');
   showComboSel.innerHTML = opts; showComboSel.value = state.showCombo;
+  shearComboSel.innerHTML = opts; shearComboSel.value = state.shearCombo;
+  momentComboSel.innerHTML = opts; momentComboSel.value = state.momentCombo;
   deflComboSel.innerHTML = opts; deflComboSel.value = state.deflCombo;
 }
 
@@ -1976,6 +2021,8 @@ function renderLoadSystemPanel(){
     if (state.combos.length <= 1){ showToast('ต้องมี combination อย่างน้อย 1 อัน'); return; }
     state.combos = state.combos.filter(k=>k.id!==id);
     if (state.showCombo === id) state.showCombo = state.combos[0].id;
+    if (state.shearCombo === id) state.shearCombo = state.combos[0].id;
+    if (state.momentCombo === id) state.momentCombo = state.combos[0].id;
     if (state.deflCombo === id) state.deflCombo = state.combos[0].id;
     renderLoadSystemPanel(); recompute();
   }));
@@ -1994,6 +2041,8 @@ $('#addCombo').addEventListener('click', ()=>{
 });
 showComboSel.addEventListener('change', ()=>{ state.showCombo = showComboSel.value; recompute(); });
 deflComboSel.addEventListener('change', ()=>{ state.deflCombo = deflComboSel.value; recompute(); });
+shearComboSel.addEventListener('change', ()=>{ state.shearCombo = shearComboSel.value; recompute(); });
+momentComboSel.addEventListener('change', ()=>{ state.momentCombo = momentComboSel.value; recompute(); });
 
 /* ============== EVENTS: form inputs ============== */
 beamLengthInput.addEventListener('change', ()=>{
